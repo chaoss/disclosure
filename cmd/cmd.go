@@ -3,7 +3,10 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"slices"
+	"strings"
 
 	"github.com/chaoss/disclosure/detection"
 	"github.com/chaoss/disclosure/detection/coauthor"
@@ -14,6 +17,7 @@ import (
 	"github.com/chaoss/disclosure/output"
 	"github.com/chaoss/disclosure/scan"
 	"github.com/spf13/cobra"
+	"github.com/spf13/cobra/doc"
 )
 
 var Version = "dev"
@@ -51,6 +55,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	rootCmd.AddCommand(scanCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(textCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(versionCommand(stdout, &exitCode))
+	rootCmd.AddCommand(generateDocs(&exitCode))
 
 	rootCmd.SetArgs(args)
 	if err := rootCmd.Execute(); err != nil {
@@ -230,4 +235,76 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 	}
 
 	return filtered
+}
+
+func generateDocs(exitCode *int) *cobra.Command {
+	var outputDir string
+	var formatFlag string
+
+	defaultOutputDir := "./docs/cli"
+	supportedFormats := []string{"markdown", "manpages", "rest"}
+	cmd := &cobra.Command{
+		Use:   "docs",
+		Short: fmt.Sprintf("Build docs in %s formats", strings.Join(supportedFormats, ", ")),
+		Example: fmt.Sprintf(`  # simply build markdown docs at default output dir (%s)
+  ai-detection-action docs
+
+  # build rest docs at default output dir
+  ai-detection-action docs --format rest
+
+  # build manpages docs at a specific 'documentation' dir
+  ai-detection-action docs --format manpages --out ./documentation`, defaultOutputDir),
+		Args: cobra.MaximumNArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prepareError := func(err error) error {
+				log.Println(err)
+				*exitCode = ExitError
+				return err
+			}
+
+			var docDir string
+			var err error
+
+			root := cmd.Root()
+			// as per cobra docs: disable autogen tag for
+			// stable, reproducible files (no timestamp footer)
+			root.DisableAutoGenTag = true
+
+			// create required dir for docs inside output dir
+			if slices.Contains(supportedFormats, formatFlag) {
+				docDir = fmt.Sprintf("%s/%s", outputDir, formatFlag)
+				err = os.MkdirAll(docDir, 0o755)
+			} else {
+				err = fmt.Errorf("unknown format: %s\n", formatFlag)
+			}
+			if err != nil {
+				return prepareError(err)
+			}
+
+			// gen docs as per specified flag
+			switch formatFlag {
+			case "markdown":
+				log.Println("Building docs in Markdown format.")
+				err = doc.GenMarkdownTree(root, docDir)
+			case "manpages":
+				log.Println("Building docs in Manpages format.")
+				hdr := &doc.GenManHeader{Title: strings.ToUpper(root.Name()), Section: "1"}
+				err = doc.GenManTree(root, hdr, docDir)
+			case "rest":
+				log.Println("Building docs in ReST (reStructuredText) format.")
+				err = doc.GenReSTTree(root, docDir)
+			}
+
+			if err != nil {
+				return prepareError(err)
+			}
+			log.Printf("Docs built successfully at %s\n", docDir)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&outputDir, "out", defaultOutputDir, "output directory")
+	cmd.Flags().StringVar(&formatFlag, "format", "markdown", strings.Join(supportedFormats, "|"))
+
+	return cmd
 }
