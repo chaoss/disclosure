@@ -11,11 +11,12 @@ Four detectors run against each commit, each producing findings at a confidence 
 **High confidence** -- strong signals that an AI tool authored or co-authored the commit:
 - Known AI bot committer emails (Claude, Copilot, Cursor, Codex, Gemini Code Assist, Amazon Q, Devin, Cline, Continue.dev, Cody, JetBrains AI, CodeRabbit). Also matches on the numeric prefix of GitHub noreply emails, so bot username renames don't break detection.
 - `Co-Authored-By` trailers with known AI tool emails (Claude Code, Cursor, Aider).
+- AI session ID trailers (such as Replit-Commit-Session-Id) combined with other known commit trailers, indicating that the commit was generated as part of an AI conversation or workflow.
 
 **Medium confidence** -- patterns in the commit message itself:
 - `aider:` prefix (Aider's default commit format).
 - `Generated with Claude Code` footer.
-- Known commit trailers in formats unique to specific tools (such as EntireIO and Replit) that can contain values indicative of AI use
+- Known commit trailers in formats unique to specific tools (such as EntireIO, Replit Agent/Assistant) that can contain values indicative of AI use.
 
 
 **Low confidence** -- mentions of AI tool names in text:
