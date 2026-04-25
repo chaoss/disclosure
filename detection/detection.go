@@ -22,6 +22,10 @@ func (c Confidence) String() string {
 	}
 }
 
+func (c *Confidence) Increment() {
+	*c = min(*c+1, ConfidenceHigh)
+}
+
 // Finding represents a single detection of AI involvement.
 type Finding struct {
 	Detector   string     `json:"detector"`
