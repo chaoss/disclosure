@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/ai-detection-action/detection/assistedby"
 	"github.com/chaoss/ai-detection-action/detection/coauthor"
 	"github.com/chaoss/ai-detection-action/detection/committer"
 	"github.com/chaoss/ai-detection-action/detection/gitnotes"
@@ -27,6 +28,7 @@ const (
 
 func allDetectors() []detection.Detector {
 	return []detection.Detector{
+		&assistedby.Detector{},
 		&committer.Detector{},
 		&coauthor.Detector{},
 		&gitnotes.Detector{},

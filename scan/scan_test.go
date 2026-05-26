@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/ai-detection-action/detection/assistedby"
 	"github.com/chaoss/ai-detection-action/detection/coauthor"
 	"github.com/chaoss/ai-detection-action/detection/committer"
 	"github.com/chaoss/ai-detection-action/detection/gitnotes"
@@ -19,6 +20,7 @@ import (
 
 func allDetectors() []detection.Detector {
 	return []detection.Detector{
+		&assistedby.Detector{},
 		&committer.Detector{},
 		&coauthor.Detector{},
 		&gitnotes.Detector{},
@@ -48,6 +50,19 @@ func initTestRepo(t *testing.T) (string, []string) {
 		{"initial commit", "human@example.com"},
 		{"fix: update handler\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>", "human@example.com"},
 		{"aider: refactor auth module", "human@example.com"},
+		{`
+this is a commit message
+
+Co-Authored-By: Cursor <cursoragent@cursor.com>
+
+Assisted-by: Claude 4.7 Opus
+	(logic optimization and design fixes)
+Assisted-by: Kimi K2.6 (unit tests, integration tests)
+Assisted-by: ChatGPT (documentation review)
+Assisted-by: Gemini (documentation)
+`,
+			"human@example.com",
+		},
 	}
 
 	var hashes []string
@@ -84,17 +99,17 @@ func TestScanCommitRange(t *testing.T) {
 	dir, hashes := initTestRepo(t)
 	detectors := allDetectors()
 
-	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[2], detectors)
+	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[3], detectors)
 	if err != nil {
 		t.Fatalf("ScanCommitRange: %v", err)
 	}
 
-	if report.Summary.TotalCommits != 2 {
-		t.Errorf("total commits = %d, want 2", report.Summary.TotalCommits)
+	if report.Summary.TotalCommits != 3 {
+		t.Errorf("total commits = %d, want 3", report.Summary.TotalCommits)
 	}
 
-	if report.Summary.AICommits != 2 {
-		t.Errorf("ai commits = %d, want 2", report.Summary.AICommits)
+	if report.Summary.AICommits != 3 {
+		t.Errorf("ai commits = %d, want 3", report.Summary.AICommits)
 	}
 
 	// Check that Claude Code was detected via co-author
@@ -105,6 +120,21 @@ func TestScanCommitRange(t *testing.T) {
 	// Check that Aider was detected via message pattern
 	if count, ok := report.Summary.ToolCounts["Aider"]; !ok || count == 0 {
 		t.Error("expected Aider in tool counts")
+	}
+
+	// Check detection via assisted-by pattern 1
+	if count, ok := report.Summary.ToolCounts["ChatGPT"]; !ok || count == 0 {
+		t.Error("expected ChatGPT in tool counts")
+	}
+
+	// Check detection via assisted-by pattern 2
+	if count, ok := report.Summary.ToolCounts["Claude 4.7 Opus"]; !ok || count == 0 {
+		t.Error("expected Claude 4.7 Opus in tool counts")
+	}
+
+	// Check detection via assisted-by pattern 3
+	if count, ok := report.Summary.ToolCounts["Kimi K2.6"]; !ok || count == 0 {
+		t.Error("expected Kimi K2.6 Opus in tool counts")
 	}
 }
 
@@ -117,8 +147,8 @@ func TestScanCommitRangeAll(t *testing.T) {
 		t.Fatalf("ScanCommitRange: %v", err)
 	}
 
-	if report.Summary.TotalCommits != 3 {
-		t.Errorf("total commits = %d, want 3", report.Summary.TotalCommits)
+	if report.Summary.TotalCommits != 4 {
+		t.Errorf("total commits = %d, want 4", report.Summary.TotalCommits)
 	}
 }
 
@@ -126,28 +156,34 @@ func TestScanCommit(t *testing.T) {
 	dir, hashes := initTestRepo(t)
 	detectors := allDetectors()
 
-	// Scan the commit with co-author trailer
-	result, err := ScanCommit(dir, hashes[1], detectors)
+	// Scan the commit with assisted-by and co-author trailers
+	result, err := ScanCommit(dir, hashes[3], detectors)
 	if err != nil {
 		t.Fatalf("ScanCommit: %v", err)
 	}
 
-	if result.Hash != hashes[1] {
-		t.Errorf("hash = %q, want %q", result.Hash, hashes[1])
+	if result.Hash != hashes[3] {
+		t.Errorf("hash = %q, want %q", result.Hash, hashes[3])
 	}
 
 	if len(result.Findings) == 0 {
-		t.Error("expected findings for co-author commit")
+		t.Error("expected findings for assisted-by and co-author trailers")
 	}
 
 	foundCoauthor := false
+	foundAssistedBy := false
 	for _, f := range result.Findings {
-		if f.Detector == "coauthor" && f.Tool == "Claude Code" {
+		if f.Detector == "coauthor" && f.Tool == "Cursor" {
 			foundCoauthor = true
+		} else if f.Detector == "assistedby" && f.Tool == "Kimi K2.6" {
+			foundAssistedBy = true
 		}
 	}
 	if !foundCoauthor {
-		t.Error("expected coauthor finding for Claude Code")
+		t.Error("expected coauthor finding for Cursor")
+	}
+	if !foundAssistedBy {
+		t.Error("expected assistedby finding for Kimi K2.6")
 	}
 }
 
@@ -281,7 +317,7 @@ func TestReportSummaryByConfidence(t *testing.T) {
 		t.Fatalf("ScanCommitRange: %v", err)
 	}
 
-	// Co-author trailer should give high confidence
+	// Co-author and Assisted-By trailers should give high confidence
 	if count, ok := report.Summary.ByConfidence["high"]; !ok || count == 0 {
 		t.Error("expected high confidence findings")
 	}
