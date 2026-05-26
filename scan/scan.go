@@ -66,6 +66,7 @@ func scanOneCommit(c gitops.Commit, detectors []detection.Detector) CommitResult
 		CommitHash:    c.Hash,
 		CommitEmail:   c.CommitterEmail,
 		CommitMessage: c.Message,
+		Notes:         c.Notes,
 	}
 
 	var findings []detection.Finding

@@ -2,6 +2,7 @@ package scan
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/chaoss/ai-detection-action/detection"
 	"github.com/chaoss/ai-detection-action/detection/coauthor"
 	"github.com/chaoss/ai-detection-action/detection/committer"
+	"github.com/chaoss/ai-detection-action/detection/gitnotes"
 	"github.com/chaoss/ai-detection-action/detection/message"
 	"github.com/chaoss/ai-detection-action/detection/toolmention"
 	"github.com/go-git/go-git/v5"
@@ -19,6 +21,7 @@ func allDetectors() []detection.Detector {
 	return []detection.Detector{
 		&committer.Detector{},
 		&coauthor.Detector{},
+		&gitnotes.Detector{},
 		&message.Detector{},
 		&toolmention.Detector{},
 	}
@@ -173,6 +176,99 @@ func TestScanTextNoFindings(t *testing.T) {
 	findings := ScanText("This is a normal PR description", detectors)
 	if len(findings) != 0 {
 		t.Errorf("expected no findings, got %d", len(findings))
+	}
+}
+
+func TestScanCommitWithGitNotes(t *testing.T) {
+	dir := t.TempDir()
+
+	repo, err := git.PlainInit(dir, false)
+	if err != nil {
+		t.Fatalf("init repo: %v", err)
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("worktree: %v", err)
+	}
+
+	filename := filepath.Join(dir, "main.rs")
+	if err := os.WriteFile(filename, []byte("fn main() {}"), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if _, err := wt.Add("main.rs"); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	hash, err := wt.Commit("add main", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Test",
+			Email: "human@example.com",
+			When:  time.Now(),
+		},
+		Committer: &object.Signature{
+			Name:  "Test",
+			Email: "human@example.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	// Attach a git-ai note using the git CLI
+	noteContent := `src/main.rs
+  abcd1234abcd1234 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "base_commit_sha": "0000000000000000000000000000000000000000",
+  "prompts": {
+    "abcd1234abcd1234": {
+      "agent_id": {
+        "tool": "cursor",
+        "model": "claude-4.5-opus"
+      },
+      "total_additions": 1,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}`
+
+	// Configure git identity for the notes commit (CI runners may not have one)
+	for _, kv := range [][2]string{{"user.name", "Test"}, {"user.email", "test@test.com"}} {
+		cfg := exec.Command("git", "config", kv[0], kv[1])
+		cfg.Dir = dir
+		if out, err := cfg.CombinedOutput(); err != nil {
+			t.Fatalf("git config %s: %v\n%s", kv[0], err, out)
+		}
+	}
+
+	cmd := exec.Command("git", "notes", "--ref=refs/notes/ai", "add", "-m", noteContent, hash.String())
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git notes add: %v\n%s", err, out)
+	}
+
+	detectors := allDetectors()
+	result, err := ScanCommit(dir, hash.String(), detectors)
+	if err != nil {
+		t.Fatalf("ScanCommit: %v", err)
+	}
+
+	foundGitNotes := false
+	for _, f := range result.Findings {
+		if f.Detector == "gitnotes" && f.Tool == "cursor" {
+			foundGitNotes = true
+			if f.Confidence != detection.ConfidenceHigh {
+				t.Errorf("confidence = %d, want high(%d)", f.Confidence, detection.ConfidenceHigh)
+			}
+		}
+	}
+	if !foundGitNotes {
+		t.Errorf("expected gitnotes finding for cursor, got findings: %v", result.Findings)
 	}
 }
 

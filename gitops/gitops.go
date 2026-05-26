@@ -2,6 +2,7 @@ package gitops
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -15,15 +16,18 @@ type Commit struct {
 	AuthorEmail    string
 	CommitterEmail string
 	Message        string
+	Notes          string // Content from refs/notes/ai, if any
 }
 
-func commitFromObject(c *object.Commit) Commit {
-	return Commit{
+func commitFromObject(c *object.Commit, repo *git.Repository) Commit {
+	commit := Commit{
 		Hash:           c.Hash.String(),
 		AuthorEmail:    c.Author.Email,
 		CommitterEmail: c.Committer.Email,
 		Message:        c.Message,
 	}
+	commit.Notes = readNote(repo, c.Hash)
+	return commit
 }
 
 // GetCommit reads a single commit by hash from the repository at repoPath.
@@ -39,7 +43,7 @@ func GetCommit(repoPath string, hash string) (Commit, error) {
 		return Commit{}, fmt.Errorf("reading commit %s: %w", hash, err)
 	}
 
-	return commitFromObject(c), nil
+	return commitFromObject(c, repo), nil
 }
 
 // ListCommits returns commits in the given range. The range format is "BASE..HEAD"
@@ -113,7 +117,7 @@ func listAllCommits(repo *git.Repository) ([]Commit, error) {
 
 	var commits []Commit
 	err = iter.ForEach(func(c *object.Commit) error {
-		commits = append(commits, commitFromObject(c))
+		commits = append(commits, commitFromObject(c, repo))
 		return nil
 	})
 	if err != nil {
@@ -121,6 +125,69 @@ func listAllCommits(repo *git.Repository) ([]Commit, error) {
 	}
 
 	return commits, nil
+}
+
+// notesRefs lists the git-notes namespaces we check for AI authorship logs,
+// in priority order. refs/notes/ai is the git-ai standard namespace.
+var notesRefs = []string{
+	"refs/notes/ai",
+}
+
+// readNote reads the git note attached to commitHash under the AI notes refs.
+// Returns empty string when no note exists.
+func readNote(repo *git.Repository, commitHash plumbing.Hash) string {
+	for _, refName := range notesRefs {
+		ref, err := repo.Reference(plumbing.ReferenceName(refName), true)
+		if err != nil {
+			continue
+		}
+
+		notesCommit, err := repo.CommitObject(ref.Hash())
+		if err != nil {
+			continue
+		}
+
+		tree, err := notesCommit.Tree()
+		if err != nil {
+			continue
+		}
+
+		// Notes are stored as blobs named by the commit hash they annotate.
+		// go-git uses the full hex hash as the path, but some implementations
+		// split it as ab/cd1234... so try both.
+		hashStr := commitHash.String()
+		entry, err := tree.FindEntry(hashStr)
+		if err != nil {
+			// Try the split format: first 2 chars / remaining
+			entry, err = tree.FindEntry(hashStr[:2] + "/" + hashStr[2:])
+			if err != nil {
+				continue
+			}
+		}
+
+		blob, err := repo.BlobObject(entry.Hash)
+		if err != nil {
+			continue
+		}
+
+		reader, err := blob.Reader()
+		if err != nil {
+			continue
+		}
+
+		content, err := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if err != nil {
+			continue
+		}
+		if closeErr != nil {
+			continue
+		}
+
+		return string(content)
+	}
+
+	return ""
 }
 
 func listCommitRange(repo *git.Repository, base, head plumbing.Hash) ([]Commit, error) {
@@ -150,7 +217,7 @@ func listCommitRange(repo *git.Repository, base, head plumbing.Hash) ([]Commit, 
 		if baseExclude[c.Hash] {
 			return nil
 		}
-		commits = append(commits, commitFromObject(c))
+		commits = append(commits, commitFromObject(c, repo))
 		return nil
 	})
 	if err != nil {

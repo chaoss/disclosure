@@ -40,6 +40,7 @@ type Input struct {
 	CommitHash    string
 	CommitEmail   string
 	CommitMessage string
+	Notes         string // Content from refs/notes/ai, if any
 	Text          string // For text-only scans (PR body, comments)
 	RepoPath      string
 }

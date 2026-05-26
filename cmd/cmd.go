@@ -8,6 +8,7 @@ import (
 	"github.com/chaoss/ai-detection-action/detection"
 	"github.com/chaoss/ai-detection-action/detection/coauthor"
 	"github.com/chaoss/ai-detection-action/detection/committer"
+	"github.com/chaoss/ai-detection-action/detection/gitnotes"
 	"github.com/chaoss/ai-detection-action/detection/message"
 	"github.com/chaoss/ai-detection-action/detection/toolmention"
 	"github.com/chaoss/ai-detection-action/output"
@@ -28,6 +29,7 @@ func allDetectors() []detection.Detector {
 	return []detection.Detector{
 		&committer.Detector{},
 		&coauthor.Detector{},
+		&gitnotes.Detector{},
 		&message.Detector{},
 		&toolmention.Detector{},
 	}
