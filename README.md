@@ -6,11 +6,12 @@ The goal is to help open source maintainers understand when AI tools are involve
 
 ## What it detects
 
-Four detectors run against each commit, each producing findings at a confidence level:
+The built-in detectors run against each commit, each producing findings at a confidence level:
 
 **High confidence** -- strong signals that an AI tool authored or co-authored the commit:
 - Known AI bot committer emails (Claude, Copilot, Cursor, Codex, Gemini Code Assist, Amazon Q, Devin, Cline, Continue.dev, Cody, JetBrains AI, CodeRabbit). Also matches on the numeric prefix of GitHub noreply emails, so bot username renames don't break detection.
 - `Co-Authored-By` trailers with known AI tool emails (Claude Code, Cursor, Aider).
+- `git-ai` authorship logs stored in git notes under `refs/notes/ai`, including the attributed tool and model when available.
 - AI session ID trailers (such as Replit-Commit-Session-Id) combined with other known commit trailers, indicating that the commit was generated as part of an AI conversation or workflow.
 
 **Medium confidence** -- patterns in the commit message itself:
@@ -169,6 +170,7 @@ go test ./...
 detection/              Core types: Detector interface, Finding, Confidence, Input
 detection/committer/    Known AI bot committer emails
 detection/coauthor/     Co-Authored-By trailer parsing
+detection/gitnotes/     git-ai authorship logs from refs/notes/ai
 detection/message/      Commit message pattern matching
 detection/toolmention/  AI tool name mentions in text
 gitops/                 go-git wrapper for reading commits
