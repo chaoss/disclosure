@@ -3,7 +3,7 @@ package gitnotes
 import (
 	"testing"
 
-	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/disclosure/detection"
 )
 
 func TestDetect(t *testing.T) {

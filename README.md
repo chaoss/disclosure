@@ -25,9 +25,9 @@ Four detectors run against each commit, each producing findings at a confidence 
 ## CLI usage
 
 ```
-ai-detection scan [--range=BASE..HEAD] [--format=json|text] [--min-confidence=low|medium|high] [repo-path]
-ai-detection text [--format=json|text] [--input=FILE|-]
-ai-detection version
+disclosure scan [--range=BASE..HEAD] [--format=json|text] [--min-confidence=low|medium|high] [repo-path]
+disclosure text [--format=json|text] [--input=FILE|-]
+disclosure version
 ```
 
 Exit codes: `0` = no AI detected, `1` = AI detected, `2` = error.
@@ -36,13 +36,13 @@ Exit codes: `0` = no AI detected, `1` = AI detected, `2` = error.
 
 ```sh
 # Scan all commits in the current repo
-ai-detection scan
+disclosure scan
 
 # Scan a specific range, JSON output
-ai-detection scan --range=abc123..def456 --format=json
+disclosure scan --range=abc123..def456 --format=json
 
 # Only report high-confidence findings
-ai-detection scan --min-confidence=high /path/to/repo
+disclosure scan --min-confidence=high /path/to/repo
 ```
 
 ### Scan text
@@ -50,9 +50,9 @@ ai-detection scan --min-confidence=high /path/to/repo
 Reads from stdin by default, or from a file with `--input`:
 
 ```sh
-echo "I used Claude to write this PR" | ai-detection text --format=json
+echo "I used Claude to write this PR" | disclosure text --format=json
 
-ai-detection text --input=pr-body.txt
+disclosure text --input=pr-body.txt
 ```
 
 ### Use as a CI gate
@@ -60,7 +60,7 @@ ai-detection text --input=pr-body.txt
 The exit code makes it usable in shell pipelines and CI scripts:
 
 ```sh
-if ai-detection scan --range=$BASE..$HEAD --min-confidence=medium; then
+if disclosure scan --range=$BASE..$HEAD --min-confidence=medium; then
   echo "No AI detected"
 else
   echo "AI involvement detected"
@@ -72,7 +72,7 @@ fi
 Add to your workflow to automatically label PRs with detected AI involvement:
 
 ```yaml
-- uses: chaoss/ai-detection-action/action@main
+- uses: chaoss/disclosure/action@main
   with:
     label: 'ai-detected'        # label to apply (default: ai-detected)
     min-confidence: 'low'        # low, medium, or high (default: low)
@@ -91,7 +91,7 @@ The labeling logic lives entirely in the action layer. The CLI reports findings;
 The detection packages can be imported directly into other Go projects:
 
 ```sh
-go get github.com/chaoss/ai-detection-action
+go get github.com/chaoss/disclosure
 ```
 
 Scan a repo's commits with the built-in detectors:
@@ -102,12 +102,12 @@ package main
 import (
 	"fmt"
 
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/detection/coauthor"
-	"github.com/chaoss/ai-detection-action/detection/committer"
-	"github.com/chaoss/ai-detection-action/detection/message"
-	"github.com/chaoss/ai-detection-action/detection/toolmention"
-	"github.com/chaoss/ai-detection-action/scan"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/coauthor"
+	"github.com/chaoss/disclosure/detection/committer"
+	"github.com/chaoss/disclosure/detection/message"
+	"github.com/chaoss/disclosure/detection/toolmention"
+	"github.com/chaoss/disclosure/scan"
 )
 
 func main() {
@@ -152,7 +152,7 @@ Pass it alongside the built-in detectors and the scan functions will run it the 
 ## Building from source
 
 ```sh
-go build -o ai-detection .
+go build -o disclosure .
 ```
 
 Requires Go 1.24+.

@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/scan"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/scan"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
@@ -72,7 +72,7 @@ func TestRunNoArgs(t *testing.T) {
 	if code != ExitNoAI {
 		t.Errorf("exit code = %d, want %d", code, ExitNoAI)
 	}
-	if !strings.Contains(stdout.String(), "ai-detection") {
+	if !strings.Contains(stdout.String(), "disclosure") {
 		t.Errorf("expected help output, got: %s", stdout.String())
 	}
 }
@@ -91,7 +91,7 @@ func TestRunVersion(t *testing.T) {
 	if code != ExitNoAI {
 		t.Errorf("exit code = %d, want %d", code, ExitNoAI)
 	}
-	if !strings.Contains(stdout.String(), "ai-detection") {
+	if !strings.Contains(stdout.String(), "disclosure") {
 		t.Errorf("expected version output, got: %s", stdout.String())
 	}
 }

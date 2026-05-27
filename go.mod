@@ -1,4 +1,4 @@
-module github.com/chaoss/ai-detection-action
+module github.com/chaoss/disclosure
 
 go 1.24.0
 

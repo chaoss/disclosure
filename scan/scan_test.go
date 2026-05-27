@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/detection/coauthor"
-	"github.com/chaoss/ai-detection-action/detection/committer"
-	"github.com/chaoss/ai-detection-action/detection/gitnotes"
-	"github.com/chaoss/ai-detection-action/detection/message"
-	"github.com/chaoss/ai-detection-action/detection/toolmention"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/coauthor"
+	"github.com/chaoss/disclosure/detection/committer"
+	"github.com/chaoss/disclosure/detection/gitnotes"
+	"github.com/chaoss/disclosure/detection/message"
+	"github.com/chaoss/disclosure/detection/toolmention"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )

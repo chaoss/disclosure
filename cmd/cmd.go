@@ -5,14 +5,14 @@ import (
 	"io"
 	"os"
 
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/detection/coauthor"
-	"github.com/chaoss/ai-detection-action/detection/committer"
-	"github.com/chaoss/ai-detection-action/detection/gitnotes"
-	"github.com/chaoss/ai-detection-action/detection/message"
-	"github.com/chaoss/ai-detection-action/detection/toolmention"
-	"github.com/chaoss/ai-detection-action/output"
-	"github.com/chaoss/ai-detection-action/scan"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/coauthor"
+	"github.com/chaoss/disclosure/detection/committer"
+	"github.com/chaoss/disclosure/detection/gitnotes"
+	"github.com/chaoss/disclosure/detection/message"
+	"github.com/chaoss/disclosure/detection/toolmention"
+	"github.com/chaoss/disclosure/output"
+	"github.com/chaoss/disclosure/scan"
 	"github.com/spf13/cobra"
 )
 
@@ -38,7 +38,7 @@ func allDetectors() []detection.Detector {
 // Run is the main entry point for the CLI. Returns an exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
 	rootCmd := &cobra.Command{
-		Use:           "ai-detection",
+		Use:           "disclosure",
 		Short:         "Detect AI-generated contributions",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -190,7 +190,7 @@ func versionCommand(stdout io.Writer, exitCode *int) *cobra.Command {
 		Use:   "version",
 		Short: "Print version",
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Fprintf(stdout, "ai-detection %s\n", Version)
+			fmt.Fprintf(stdout, "disclosure %s\n", Version)
 			*exitCode = ExitNoAI
 		},
 	}

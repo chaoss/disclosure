@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/disclosure/detection"
 )
 
 // knownAgentCommitters maps GitHub noreply emails to AI tool names.
