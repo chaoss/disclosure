@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/chaoss/ai-detection-action/cmd"
+	"github.com/chaoss/disclosure/cmd"
 )
 
 func main() {

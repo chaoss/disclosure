@@ -1,8 +1,8 @@
 package scan
 
 import (
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/gitops"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/gitops"
 )
 
 // CommitResult holds findings for a single commit.

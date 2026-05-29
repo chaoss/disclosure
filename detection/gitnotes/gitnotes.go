@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/disclosure/detection"
 )
 
 // metadata represents the JSON metadata section of a git-ai authorship log.

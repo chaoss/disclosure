@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/chaoss/ai-detection-action/detection"
-	"github.com/chaoss/ai-detection-action/scan"
+	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/scan"
 )
 
 // FormatJSON writes the report as JSON to w.

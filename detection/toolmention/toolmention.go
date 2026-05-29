@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/disclosure/detection"
 )
 
 // toolPatterns maps AI tool names to compiled word-boundary regexes.

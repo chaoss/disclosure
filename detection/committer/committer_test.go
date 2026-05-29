@@ -3,7 +3,7 @@ package committer
 import (
 	"testing"
 
-	"github.com/chaoss/ai-detection-action/detection"
+	"github.com/chaoss/disclosure/detection"
 )
 
 func TestDetectAllKnownEmails(t *testing.T) {
