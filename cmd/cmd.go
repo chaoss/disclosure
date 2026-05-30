@@ -50,6 +50,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 	rootCmd.AddCommand(scanCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(textCommand(stdout, stderr, &exitCode))
+	rootCmd.AddCommand(actionsCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(versionCommand(stdout, &exitCode))
 
 	rootCmd.SetArgs(args)
