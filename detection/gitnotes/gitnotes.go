@@ -82,6 +82,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       tool,
+			Model:      prompt.AgentID.Model,
 			Confidence: detection.ConfidenceHigh,
 			Detail:     detail,
 		})
