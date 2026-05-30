@@ -94,6 +94,31 @@ type Detector struct{}
 
 func (d *Detector) Name() string { return "trailer" }
 
+type toolModelPair struct {
+	tool  string
+	model string
+}
+
+func extractCoauthorModel(tool, namePart string) string {
+	namePart = strings.TrimSpace(namePart)
+
+	switch tool {
+	case "Aider":
+		start := strings.Index(namePart, "(")
+		end := strings.Index(namePart, ")")
+		if start >= 0 && end > start {
+			return strings.TrimSpace(namePart[start+1 : end])
+		}
+	case "Claude Code":
+		if strings.EqualFold(namePart, "Claude") || strings.EqualFold(namePart, "Claude Code") {
+			return ""
+		}
+		return namePart
+	}
+
+	return ""
+}
+
 func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.Finding {
 	var findings []detection.Finding
 
@@ -102,18 +127,29 @@ func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.F
 		return findings
 	}
 
-	seen := map[string]bool{}
+	seen := map[toolModelPair]bool{}
 	for _, match := range matches {
-		email := strings.ToLower(strings.TrimSpace(match[1]))
+		if len(match) < 3 {
+			continue
+		}
 
-		if name, ok := detection.KnownCoAuthorEmails[email]; ok && !seen[name] {
+		namePart := strings.TrimSpace(match[1])
+		email := strings.ToLower(strings.TrimSpace(match[2]))
+
+		if name, ok := detection.KnownCoAuthorEmails[email]; ok {
+			model := extractCoauthorModel(name, namePart)
+			key := toolModelPair{tool: name, model: model}
+			if seen[key] {
+				continue
+			}
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       name,
+				Model:      model,
 				Confidence: detection.ConfidenceHigh,
 				Detail:     fmt.Sprintf("Co-Authored-By trailer with email %s", email),
 			})
-			seen[name] = true
+			seen[key] = true
 		}
 	}
 

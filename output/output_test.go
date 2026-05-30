@@ -19,6 +19,7 @@ func sampleReport() scan.Report {
 					{
 						Detector:   "trailer",
 						Tool:       "Claude Code",
+						Model:      "Claude Opus 4",
 						Confidence: detection.ConfidenceHigh,
 						Detail:     "Co-Authored-By trailer with email noreply@anthropic.com",
 					},
@@ -76,6 +77,9 @@ func TestFormatText(t *testing.T) {
 	}
 	if !strings.Contains(out, "Claude Code") {
 		t.Errorf("expected tool name in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Claude Code [Claude Opus 4]") {
+		t.Errorf("expected tool model in output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "abc123def456") {
 		t.Errorf("expected commit hash in output, got:\n%s", out)

@@ -59,8 +59,8 @@ var KnownCoAuthorEmails = map[string]string{
 	"copilot@github.com":     "Copilot",
 }
 
-// CoAuthorPattern Regex to look for Co-Authroed-By trailer with email
-var CoAuthorPattern = regexp.MustCompile(`(?im)^co-authored-by:\s*[^<]*<([^>]+)>`)
+// CoAuthorPattern Regex to look for Co-Authored-By trailer with name and email
+var CoAuthorPattern = regexp.MustCompile(`(?im)^co-authored-by:\s*([^<]*)<([^>]+)>`)
 
 // AssistedByPattern Regex to look for Assisted-By trailer with tool name
 var AssistedByPattern = regexp.MustCompile(`(?im)^assisted-by\s*:\s*([^\r\n]+?)\s*$`)
