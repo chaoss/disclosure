@@ -35,6 +35,7 @@ func init() {
 		"JetBrains AI",
 		"CodeRabbit",
 		"ChatGPT",
+		"t3.chat",
 		"GPT-4",
 		"Windsurf",
 	}

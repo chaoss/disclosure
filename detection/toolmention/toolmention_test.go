@@ -70,6 +70,21 @@ func TestDetect(t *testing.T) {
 			wantTools: []string{"ChatGPT"},
 		},
 		{
+			name:      "t3.chat mention",
+			input:     detection.Input{Text: "I used t3.chat to compare model outputs"},
+			wantTools: []string{"t3.chat"},
+		},
+		{
+			name:      "t3.chat mention is case insensitive",
+			input:     detection.Input{Text: "Generated with T3.CHAT"},
+			wantTools: []string{"t3.chat"},
+		},
+		{
+			name:      "t3.chat word boundary prevents partial match",
+			input:     detection.Input{Text: "This mentions t3.chatty, not the tool"},
+			wantTools: nil,
+		},
+		{
 			name:      "Windsurf mention",
 			input:     detection.Input{Text: "Written with Windsurf IDE"},
 			wantTools: []string{"Windsurf"},
