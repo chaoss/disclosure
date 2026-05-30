@@ -1,5 +1,7 @@
 package toolmention
 
+//go:generate go run generate.go
+
 import (
 	"regexp"
 	"sort"

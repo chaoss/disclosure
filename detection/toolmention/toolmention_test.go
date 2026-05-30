@@ -80,6 +80,21 @@ func TestDetect(t *testing.T) {
 			wantTools: []string{"ChatGPT"},
 		},
 		{
+			name:      "GPT-4 mention uses canonical display name once",
+			input:     detection.Input{Text: "I asked gpt-4 for help"},
+			wantTools: []string{"GPT-4"},
+		},
+		{
+			name:      "generated model mention",
+			input:     detection.Input{Text: "I used Kimi K2.6 for a comparison"},
+			wantTools: []string{"Kimi K2.6"},
+		},
+		{
+			name:      "generic router words do not match",
+			input:     detection.Input{Text: "Use the free router setting"},
+			wantTools: nil,
+		},
+		{
 			name:      "t3.chat mention",
 			input:     detection.Input{Text: "I used t3.chat to compare model outputs"},
 			wantTools: []string{"t3.chat"},

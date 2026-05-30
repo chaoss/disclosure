@@ -1,6 +1,9 @@
 package detection
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // KnownAgentCommitters maps GitHub noreply emails to AI tool names.
 var KnownAgentCommitters = map[string]string{
@@ -128,6 +131,42 @@ var SupportedToolsInMentions = []string{
 	"Nemotron",
 	"Salesforce Codegen",
 	"CodeWhisperer",
+}
+
+var genericModelMentionIDs = map[string]struct{}{
+	"auto":               {},
+	"auto router":        {},
+	"free":               {},
+	"free models router": {},
+	"router":             {},
+}
+
+func appendCanonicalMentions(existing []string, candidates ...string) []string {
+	seen := make(map[string]struct{}, len(existing)+len(candidates))
+	for _, item := range existing {
+		key := strings.ToLower(strings.TrimSpace(item))
+		if key != "" {
+			seen[key] = struct{}{}
+		}
+	}
+
+	for _, candidate := range candidates {
+		canonical := strings.TrimSpace(candidate)
+		key := strings.ToLower(canonical)
+		if key == "" {
+			continue
+		}
+		if _, isGeneric := genericModelMentionIDs[key]; isGeneric {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		existing = append(existing, canonical)
+		seen[key] = struct{}{}
+	}
+
+	return existing
 }
 
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers
