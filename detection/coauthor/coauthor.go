@@ -45,8 +45,6 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 				if model == "Claude" {
 					model = ""
 				}
-			} else if name == "Cursor" {
-				model = namePart
 			}
 
 			findings = append(findings, detection.Finding{

@@ -30,7 +30,7 @@ func TestDetect(t *testing.T) {
 			name:       "Cursor trailer",
 			message:    "refactor: extract method\n\nCo-Authored-By: Cursor <cursoragent@cursor.com>",
 			wantTools:  []string{"Cursor"},
-			wantModels: []string{"Cursor"},
+			wantModels: []string{""},
 		},
 		{
 			name:       "Aider trailer with model name",
