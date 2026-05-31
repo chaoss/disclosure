@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,29 +18,42 @@ type Job struct {
 }
 
 type Step struct {
-	Uses string            `yaml:"uses"`
-	With map[string]string `yaml:"with"`
+	Uses string                 `yaml:"uses"`
+	With map[string]interface{} `yaml:"with"`
 }
 
-// Config represents the extracted AI labels from workflow files.
+// ActionConfig represents the extracted configuration for a single use of the action.
+type ActionConfig struct {
+	Label         string `json:"label"`
+	MinConfidence string `json:"min_confidence"`
+	ScanPRBody    string `json:"scan_pr_body"`
+}
+
+// Config represents the extracted AI configurations from workflow files.
 type Config struct {
-	Labels []string `json:"labels"`
+	Configs []ActionConfig `json:"configs"`
 }
 
-// DetectLabels scans the .github/workflows directory for the chaoss/disclosure action
-// and returns all configured labels. If the action is found but no label is specified,
-// it returns the default "ai-detected".
-func DetectLabels(repoPath string) (*Config, error) {
+func getString(m map[string]interface{}, key, def string) string {
+	if v, ok := m[key]; ok {
+		return fmt.Sprintf("%v", v)
+	}
+	return def
+}
+
+// DetectConfigs scans the .github/workflows directory for the chaoss/disclosure action
+// and returns all configured instances. Default values are populated for missing inputs.
+func DetectConfigs(repoPath string) (*Config, error) {
 	workflowsDir := filepath.Join(repoPath, ".github", "workflows")
 	entries, err := os.ReadDir(workflowsDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return &Config{Labels: []string{}}, nil
+			return &Config{Configs: []ActionConfig{}}, nil
 		}
 		return nil, err
 	}
 
-	seenLabels := make(map[string]bool)
+	seenConfigs := make(map[ActionConfig]bool)
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -65,24 +79,25 @@ func DetectLabels(repoPath string) (*Config, error) {
 			for _, step := range job.Steps {
 				uses := strings.TrimSpace(step.Uses)
 				if strings.HasPrefix(uses, "chaoss/disclosure@") || uses == "chaoss/disclosure" {
-					label := step.With["label"]
-					if label == "" {
-						label = "ai-detected"
+					ac := ActionConfig{
+						Label:         getString(step.With, "label", "ai-detected"),
+						MinConfidence: getString(step.With, "min-confidence", "low"),
+						ScanPRBody:    getString(step.With, "scan-pr-body", "true"),
 					}
-					seenLabels[label] = true
+					seenConfigs[ac] = true
 				}
 			}
 		}
 	}
 
-	var labels []string
-	for l := range seenLabels {
-		labels = append(labels, l)
+	var configs []ActionConfig
+	for c := range seenConfigs {
+		configs = append(configs, c)
 	}
 
-	if labels == nil {
-		labels = []string{} // return empty slice rather than null in json
+	if configs == nil {
+		configs = []ActionConfig{}
 	}
 
-	return &Config{Labels: labels}, nil
+	return &Config{Configs: configs}, nil
 }

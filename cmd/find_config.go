@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func actionsCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
+func findConfigCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "actions [repo-path]",
-		Short: "Detect configured AI labels from GitHub Actions workflows",
+		Use:   "find-config [repo-path]",
+		Short: "Detect configured AI settings from GitHub Actions workflows",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			repoPath := "."
@@ -20,7 +20,7 @@ func actionsCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 				repoPath = args[0]
 			}
 
-			config, err := workflow.DetectLabels(repoPath)
+			config, err := workflow.DetectConfigs(repoPath)
 			if err != nil {
 				fmt.Fprintf(stderr, "error reading workflows: %v\n", err)
 				*exitCode = ExitError
