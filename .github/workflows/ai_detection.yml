@@ -21,5 +21,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        # we get commit history from base as its needed by the AI detection action
+        fetch-depth: 0
     - name: Run AI detection action
       uses: ./action
