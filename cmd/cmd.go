@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -241,8 +242,9 @@ func generateDocs(exitCode *int) *cobra.Command {
 	var outputDir string
 	var formatFlag string
 
-	defaultOutputDir := "./docs/cli"
+	defaultOutputDir := filepath.FromSlash("./docs/cli")
 	supportedFormats := []string{"markdown", "manpages", "rest"}
+	exampleCustomDir := filepath.FromSlash("./documentation")
 	cmd := &cobra.Command{
 		Use:   "docs",
 		Short: fmt.Sprintf("Build docs in %s formats", strings.Join(supportedFormats, ", ")),
@@ -253,7 +255,7 @@ func generateDocs(exitCode *int) *cobra.Command {
   ai-detection-action docs --format rest
 
   # build manpages docs at a specific 'documentation' dir
-  ai-detection-action docs --format manpages --out ./documentation`, defaultOutputDir),
+  ai-detection-action docs --format manpages --out %s`, defaultOutputDir, exampleCustomDir),
 		Args: cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prepareError := func(err error) error {
@@ -272,7 +274,7 @@ func generateDocs(exitCode *int) *cobra.Command {
 
 			// create required dir for docs inside output dir
 			if slices.Contains(supportedFormats, formatFlag) {
-				docDir = fmt.Sprintf("%s/%s", outputDir, formatFlag)
+				docDir = filepath.Clean(filepath.Join(outputDir, formatFlag))
 				err = os.MkdirAll(docDir, 0o755)
 			} else {
 				err = fmt.Errorf("unknown format: %s\n", formatFlag)
