@@ -227,3 +227,117 @@ func TestFilterReport(t *testing.T) {
 		t.Errorf("ai_commits = %d, want 1", filtered.Summary.AICommits)
 	}
 }
+
+func TestRunDocsMarkdownDefault(t *testing.T) {
+	// Clean up default directory paths after the test finishes
+	defer func() {
+		_ = os.RemoveAll("./docs")
+	}()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"docs"}, &stdout, &stderr)
+
+	if code != ExitNoAI {
+		t.Errorf("exit code = %d, want %d (stderr: %s)", code, ExitNoAI, stderr.String())
+	}
+
+	defaultDir := filepath.FromSlash("./docs/cli/markdown")
+	if _, err := os.Stat(defaultDir); os.IsNotExist(err) {
+		t.Fatalf("expected markdown output directory to exist: %s", defaultDir)
+	}
+
+	files, err := os.ReadDir(defaultDir)
+	if err != nil || len(files) == 0 {
+		t.Error("expected documentation files inside the markdown directory")
+	}
+}
+
+func TestRunDocsFormats(t *testing.T) {
+	tests := []struct {
+		format     string
+		expectFile string
+	}{
+		{format: "markdown", expectFile: ".md"},
+		{format: "manpages", expectFile: "1"},
+		{format: "rest", expectFile: ".rst"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			tmpDir := t.TempDir()
+
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{"docs", "--format=" + tt.format, "--out=" + tmpDir}, &stdout, &stderr)
+
+			if code != ExitNoAI {
+				t.Errorf("exit code = %d, want %d (stderr: %s)", code, ExitNoAI, stderr.String())
+			}
+
+			docDir := filepath.Join(tmpDir, tt.format)
+			if _, err := os.Stat(docDir); os.IsNotExist(err) {
+				t.Fatalf("expected format directory to exist: %s", docDir)
+			}
+
+			files, err := os.ReadDir(docDir)
+			if err != nil || len(files) == 0 {
+				t.Fatalf("no files generated for format: %s", tt.format)
+			}
+
+			foundMatch := false
+			for _, f := range files {
+				if strings.Contains(strings.ToLower(f.Name()), tt.expectFile) {
+					foundMatch = true
+					break
+				}
+				fileInfo, err := f.Info()
+				if err != nil {
+					t.Fatalf("error getting info for file: %s", f.Name())
+				}
+				if fileInfo.Size() == 0 {
+					t.Errorf("expected size to be non-zero for file: %s", f.Name())
+				}
+			}
+			if !foundMatch {
+				t.Errorf("could not find expected documentation artifact matching '%s' in output", tt.expectFile)
+			}
+		})
+	}
+}
+
+func TestRunDocsInvalidFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"docs", "--format=html", "--out=" + tmpDir}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+	if !strings.Contains(stderr.String(), "unknown format: html") {
+		t.Errorf("expected unknown format error message, got: %s", stderr.String())
+	}
+}
+
+func TestRunDocsInvalidArgument(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"docs", "unexpected-argument"}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
+
+func TestRunDocsWriteError(t *testing.T) {
+	tmpDir := t.TempDir()
+	blockedPath := filepath.Join(tmpDir, "blocked_file")
+	if err := os.WriteFile(blockedPath, []byte("this is a test file"), 0644); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"docs", "--out=" + blockedPath}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
