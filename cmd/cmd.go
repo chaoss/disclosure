@@ -45,6 +45,18 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	rootCmd := &cobra.Command{
 		Use:           "disclosure",
 		Short:         "Detect AI-generated contributions",
+		Long: `Disclosure is a standalone CLI tool that detects AI-generated contributions
+in git repositories. It works entirely from git-level data (commit emails,
+messages, trailers) with no platform API dependencies.
+
+The tool detects when AI tools are disclosed in contributions — not whether
+AI was actually used. It checks for known AI bot emails, Co-Authored-By
+trailers, git-ai notes, and tool name mentions in commit messages and text.
+
+Exit codes:
+  0  No AI detected
+  1  AI detected
+  2  Error`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -75,7 +87,32 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
 		Short: "Scan commits for AI signals",
-		Args:  cobra.MaximumNArgs(1),
+		Long: `Scan commits in a git repository for signals of AI tool usage.
+
+Checks each commit for:
+  - Known AI bot committer emails (Claude, Copilot, Cursor, etc.)
+  - Co-Authored-By trailers with AI tool emails
+  - git-ai authorship logs in git notes
+  - AI session ID trailers
+  - Commit message patterns (aider:, Generated with Claude Code, etc.)
+  - Tool name mentions in commit messages`,
+		Example: `  # Scan current directory
+  disclosure scan
+
+  # Scan a specific commit range with JSON output
+  disclosure scan --range=abc123..def456 --format=json
+
+  # Only show high-confidence findings
+  disclosure scan --min-confidence=high /path/to/repo
+
+  # Scan and use in CI pipeline
+  if disclosure scan --range=$BASE..HEAD --min-confidence=medium; then
+    echo "No AI detected"
+  else
+    echo "AI involvement detected"
+    exit 1
+  fi`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			repoPath := "."
 			if len(args) > 0 {
@@ -140,6 +177,24 @@ func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "text",
 		Short: "Scan text input for AI signals",
+		Long: `Scan arbitrary text for AI tool name mentions and signals.
+
+Useful for scanning PR descriptions, issue comments, or any text input
+for mentions of AI tools like Claude, Copilot, Cursor, ChatGPT, etc.
+
+The text scanner uses word-boundary matching to find tool names and
+is the primary detector for non-commit text analysis.`,
+		Example: `  # Scan text from stdin
+  echo "I used Claude to write this" | disclosure text --format=json
+
+  # Scan a file
+  disclosure text --input=pr-body.txt
+
+  # Scan with medium confidence threshold
+  cat comment.txt | disclosure text --min-confidence=medium
+
+  # Use in a pipeline
+  disclosure text --input=review.txt --format=json | jq '.findings'`,
 		RunE: func(_ *cobra.Command, args []string) error {
 			var textBytes []byte
 			var err error
@@ -195,6 +250,8 @@ func versionCommand(stdout io.Writer, exitCode *int) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version",
+		Example: `  disclosure version
+  disclosure version --format=json`,
 		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Fprintf(stdout, "disclosure %s\n", Version)
 			*exitCode = ExitNoAI
