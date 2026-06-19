@@ -95,7 +95,13 @@ Checks each commit for:
   - git-ai authorship logs in git notes
   - AI session ID trailers
   - Commit message patterns (aider:, Generated with Claude Code, etc.)
-  - Tool name mentions in commit messages`,
+  - Tool name mentions in commit messages
+
+Examples:
+  disclosure scan
+  disclosure scan --range=abc123..def456 --format=json
+  disclosure scan --min-confidence=high /path/to/repo
+  disclosure scan --range=$BASE..HEAD --min-confidence=medium`,
 		Example: `  # Scan current directory
   disclosure scan
 
@@ -183,7 +189,13 @@ Useful for scanning PR descriptions, issue comments, or any text input
 for mentions of AI tools like Claude, Copilot, Cursor, ChatGPT, etc.
 
 The text scanner uses word-boundary matching to find tool names and
-is the primary detector for non-commit text analysis.`,
+is the primary detector for non-commit text analysis.
+
+Examples:
+  echo "I used Claude to write this" | disclosure text --format=json
+  disclosure text --input=pr-body.txt
+  cat comment.txt | disclosure text --min-confidence=medium
+  disclosure text --input=review.txt --format=json | jq '.findings'`,
 		Example: `  # Scan text from stdin
   echo "I used Claude to write this" | disclosure text --format=json
 
@@ -250,6 +262,11 @@ func versionCommand(stdout io.Writer, exitCode *int) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print version",
+		Long: `Print the disclosure version information.
+
+Examples:
+  disclosure version
+  disclosure version --format=json`,
 		Example: `  disclosure version
   disclosure version --format=json`,
 		Run: func(_ *cobra.Command, _ []string) {
@@ -306,13 +323,13 @@ func generateDocs(exitCode *int) *cobra.Command {
 		Use:   "docs",
 		Short: fmt.Sprintf("Build docs in %s formats", strings.Join(supportedFormats, ", ")),
 		Example: fmt.Sprintf(`  # simply build markdown docs at default output dir (%s)
-  ai-detection-action docs
+  disclosure docs
 
   # build rest docs at default output dir
-  ai-detection-action docs --format rest
+  disclosure docs --format rest
 
   # build manpages docs at a specific 'documentation' dir
-  ai-detection-action docs --format manpages --out %s`, defaultOutputDir, exampleCustomDir),
+  disclosure docs --format manpages --out %s`, defaultOutputDir, exampleCustomDir),
 		Args: cobra.MaximumNArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prepareError := func(err error) error {
