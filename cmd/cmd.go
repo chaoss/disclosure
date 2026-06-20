@@ -67,6 +67,7 @@ Exit codes:
 
 	rootCmd.AddCommand(scanCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(textCommand(stdout, stderr, &exitCode))
+	rootCmd.AddCommand(findConfigCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(versionCommand(stdout, &exitCode))
 	rootCmd.AddCommand(generateDocs(&exitCode))
 
