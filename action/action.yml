@@ -6,6 +6,10 @@ inputs:
     description: 'Label to apply when AI is detected'
     required: false
     default: 'ai-detected'
+  labeling-enabled:
+    description: 'Enable/disable labeling, requires PR and Issue write permissions when enabled'
+    required: false
+    default: 'false'
   min-confidence:
     description: 'Minimum confidence level (low, medium, high)'
     required: false
@@ -85,7 +89,7 @@ runs:
         echo "${EOF}" >> "$GITHUB_OUTPUT"
 
     - name: Apply label
-      if: steps.scan.outputs.ai-detected == 'true'
+      if: steps.scan.outputs.ai-detected == 'true' && inputs.labeling-enabled == 'true'
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
