@@ -1,5 +1,7 @@
 package toolmention
 
+//go:generate go run generate.go
+
 import (
 	"fmt"
 	"regexp"
@@ -39,6 +41,8 @@ func init() {
 		"GPT-4",
 		"Windsurf",
 	}
+
+	tools = append(tools, generatedModels...)
 
 	for _, name := range tools {
 		escaped := regexp.QuoteMeta(name)
