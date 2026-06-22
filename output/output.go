@@ -42,7 +42,7 @@ func FormatText(w io.Writer, report scan.Report) error {
 		}
 		fmt.Fprintf(w, "Commit %s\n", cr.Hash[:12])
 		for _, f := range cr.Findings {
-			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.Tool, f.Detector, f.Detail)
+			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, formatTool(f), f.Detector, f.Detail)
 		}
 	}
 
@@ -58,7 +58,7 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
 	for _, f := range findings {
-		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.Tool, f.Detector, f.Detail)
+		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, formatTool(f), f.Detector, f.Detail)
 	}
 	return nil
 }
@@ -70,6 +70,20 @@ func FormatJSONFindings(w io.Writer, findings []detection.Finding) error {
 	return enc.Encode(struct {
 		Findings []detection.Finding `json:"findings"`
 	}{Findings: findings})
+}
+
+func formatTool(f detection.Finding) string {
+	var extras []string
+	if f.Model != "" {
+		extras = append(extras, f.Model)
+	}
+	if f.Version != "" {
+		extras = append(extras, "v"+f.Version)
+	}
+	if len(extras) > 0 {
+		return fmt.Sprintf("%s [%s]", f.Tool, strings.Join(extras, " "))
+	}
+	return f.Tool
 }
 
 func sortedKeys(m map[string]int) []string {

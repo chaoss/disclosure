@@ -30,6 +30,8 @@ func (c *Confidence) Increment() {
 type Finding struct {
 	Detector   string     `json:"detector"`
 	Tool       string     `json:"tool"`
+	Model      string     `json:"model,omitempty"`
+	Version    string     `json:"version,omitempty"`
 	Confidence Confidence `json:"confidence"`
 	Detail     string     `json:"detail"`
 }
