@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/assistedby"
 	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
@@ -32,6 +33,7 @@ const (
 
 func allDetectors() []detection.Detector {
 	return []detection.Detector{
+		&assistedby.Detector{},
 		&committer.Detector{},
 		&coauthor.Detector{},
 		&gitnotes.Detector{},
