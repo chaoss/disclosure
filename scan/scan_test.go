@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
@@ -24,6 +25,7 @@ func allDetectors() []detection.Detector {
 		&gitnotes.Detector{},
 		&message.Detector{},
 		&toolmention.Detector{},
+		&branchname.Detector{},
 	}
 }
 
@@ -176,6 +178,27 @@ func TestScanTextNoFindings(t *testing.T) {
 	findings := ScanText("This is a normal PR description", detectors)
 	if len(findings) != 0 {
 		t.Errorf("expected no findings, got %d", len(findings))
+	}
+}
+
+func TestScanBranch(t *testing.T) {
+	detectors := allDetectors()
+
+	findings := ScanBranch("codex/fix-collectoss", detectors)
+	if len(findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(findings))
+	}
+	if findings[0].Tool != "OpenAI Codex" {
+		t.Errorf("tool = %q, want OpenAI Codex", findings[0].Tool)
+	}
+}
+
+func TestScanBranchNoFindings(t *testing.T) {
+	detectors := allDetectors()
+
+	findings := ScanBranch("feature/update-docs", detectors)
+	if len(findings) != 0 {
+		t.Errorf("expected no findings, got %v", findings)
 	}
 }
 

@@ -61,6 +61,16 @@ func ScanText(text string, detectors []detection.Detector) []detection.Finding {
 	return findings
 }
 
+// ScanBranch runs detectors against a git branch name (e.g. PR head ref).
+func ScanBranch(branchName string, detectors []detection.Detector) []detection.Finding {
+	input := detection.Input{BranchName: branchName}
+	var findings []detection.Finding
+	for _, d := range detectors {
+		findings = append(findings, d.Detect(input)...)
+	}
+	return findings
+}
+
 func scanOneCommit(c gitops.Commit, detectors []detection.Detector) CommitResult {
 	input := detection.Input{
 		CommitHash:    c.Hash,

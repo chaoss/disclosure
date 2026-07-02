@@ -18,6 +18,7 @@ The built-in detectors run against each commit, each producing findings at a con
 - `aider:` prefix (Aider's default commit format).
 - `Generated with Claude Code` footer.
 - Known commit trailers in formats unique to specific tools (such as EntireIO, Replit Agent/Assistant) that can contain values indicative of AI use.
+- Branch name prefixes such as `codex/` that indicate OpenAI Codex involvement.
 
 
 **Low confidence** -- mentions of AI tool names in text:
@@ -28,6 +29,7 @@ The built-in detectors run against each commit, each producing findings at a con
 ```
 disclosure scan [--range=BASE..HEAD] [--format=json|text] [--min-confidence=low|medium|high] [repo-path]
 disclosure text [--format=json|text] [--input=FILE|-]
+disclosure branch [branch-name] [--format=json|text] [--min-confidence=low|medium|high]
 disclosure version
 ```
 
@@ -56,6 +58,13 @@ echo "I used Claude to write this PR" | disclosure text --format=json
 disclosure text --input=pr-body.txt
 ```
 
+### Scan branch names
+
+```sh
+disclosure branch codex/fix-metrics --format=json
+disclosure branch "$GITHUB_HEAD_REF"
+```
+
 ### Use as a CI gate
 
 The exit code makes it usable in shell pipelines and CI scripts:
@@ -80,10 +89,10 @@ Add to your workflow to automatically label PRs with detected AI involvement:
     scan-pr-body: 'true'         # scan PR description for tool mentions (default: true)
 ```
 
-The action builds the CLI from source, scans the PR's commits and optionally its body, then applies the configured label if anything is found. It exposes two outputs:
+The action builds the CLI from source, scans the PR's commits, head branch name, and optionally its body, then applies the configured label if anything is found. It exposes two outputs:
 
 - `ai-detected` -- `true` or `false`
-- `report` -- JSON object with the full findings from both the commit scan and text scan
+- `report` -- JSON object with the full findings from the commit scan, branch scan, and text scan
 
 The labeling logic lives entirely in the action layer. The CLI reports findings; the action decides what to do with them.
 
@@ -172,6 +181,7 @@ detection/committer/    Known AI bot committer emails
 detection/coauthor/     Co-Authored-By trailer parsing
 detection/gitnotes/     git-ai authorship logs from refs/notes/ai
 detection/message/      Commit message pattern matching
+detection/branchname/   AI disclosure patterns in branch names
 detection/toolmention/  AI tool name mentions in text
 gitops/                 go-git wrapper for reading commits
 scan/                   Orchestration: run detectors over commits or text

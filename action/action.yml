@@ -47,6 +47,7 @@ runs:
         MIN_CONFIDENCE: ${{ inputs.min-confidence }}
         SCAN_PR_BODY: ${{ inputs.scan-pr-body }}
         PR_BODY: ${{ github.event.pull_request.body }}
+        PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       run: |
@@ -74,13 +75,27 @@ runs:
           fi
         fi
 
+        # Scan PR head branch name
+        BRANCH_REPORT='{"findings":[]}'
+        if [ -n "${PR_HEAD_REF}" ]; then
+          BRANCH_REPORT=$(${{ runner.temp }}/ai-detection branch "${PR_HEAD_REF}" \
+            --format=json \
+            --min-confidence="${MIN_CONFIDENCE}") || BRANCH_EXIT=$?
+          if [ "${BRANCH_EXIT:-0}" = "1" ]; then
+            AI_DETECTED=true
+          elif [ "${BRANCH_EXIT:-0}" = "2" ]; then
+            echo "::warning::ai-detection branch scan failed"
+          fi
+        fi
+
         echo "ai-detected=${AI_DETECTED}" >> "$GITHUB_OUTPUT"
 
         # Combine reports into single output
         COMBINED=$(jq -n \
           --argjson commits "${COMMIT_REPORT}" \
           --argjson text "${TEXT_REPORT}" \
-          '{commits: $commits, text: $text}')
+          --argjson branch "${BRANCH_REPORT}" \
+          '{commits: $commits, text: $text, branch: $branch}')
 
         # Use a delimiter for multiline output
         EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)

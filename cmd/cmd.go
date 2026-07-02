@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
@@ -37,6 +38,7 @@ func allDetectors() []detection.Detector {
 		&gitnotes.Detector{},
 		&message.Detector{},
 		&toolmention.Detector{},
+		&branchname.Detector{},
 	}
 }
 
@@ -67,6 +69,7 @@ Exit codes:
 
 	rootCmd.AddCommand(scanCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(textCommand(stdout, stderr, &exitCode))
+	rootCmd.AddCommand(branchCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(versionCommand(stdout, &exitCode))
 	rootCmd.AddCommand(generateDocs(&exitCode))
 
@@ -174,6 +177,81 @@ Examples:
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
 
 	return cmd
+}
+
+func branchCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
+	var formatFlag string
+	var minConfFlag string
+
+	cmd := &cobra.Command{
+		Use:   "branch [branch-name]",
+		Short: "Scan a branch name for AI signals",
+		Long: `Scan a git branch name for known AI disclosure patterns.
+
+Useful for scanning pull request head refs such as codex/* branches that
+indicate OpenAI Codex involvement.
+
+Examples:
+  disclosure branch codex/fix-metrics --format=json
+  disclosure branch "$GITHUB_HEAD_REF" --min-confidence=medium`,
+		Example: `  disclosure branch codex/update-docs --format=json
+  disclosure branch "$GITHUB_HEAD_REF"`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			minConf, err := output.ConfidenceFromString(minConfFlag)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				*exitCode = ExitError
+				return err
+			}
+
+			findings := filterFindings(scan.ScanBranch(args[0], allDetectors()), minConf)
+
+			switch formatFlag {
+			case "json":
+				if err := output.FormatJSONFindings(stdout, findings); err != nil {
+					fmt.Fprintf(stderr, "error: %v\n", err)
+					*exitCode = ExitError
+					return err
+				}
+			case "text":
+				if err := output.FormatTextFindings(stdout, findings); err != nil {
+					fmt.Fprintf(stderr, "error: %v\n", err)
+					*exitCode = ExitError
+					return err
+				}
+			default:
+				err := fmt.Errorf("unknown format: %s", formatFlag)
+				fmt.Fprintln(stderr, err)
+				*exitCode = ExitError
+				return err
+			}
+
+			if len(findings) > 0 {
+				*exitCode = ExitAI
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
+	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+
+	return cmd
+}
+
+func filterFindings(findings []detection.Finding, minConf detection.Confidence) []detection.Finding {
+	if minConf <= detection.ConfidenceLow {
+		return findings
+	}
+
+	filtered := make([]detection.Finding, 0, len(findings))
+	for _, f := range findings {
+		if f.Confidence >= minConf {
+			filtered = append(filtered, f)
+		}
+	}
+	return filtered
 }
 
 func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
