@@ -135,24 +135,30 @@ func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Fi
 		return findings
 	}
 
+	seen := map[string]bool{}
 	for _, match := range matches {
 		if len(match) < 2 {
 			continue
 		}
 
 		for _, matchedTool := range extractToolsFromText(match[1]) {
+			if seen[matchedTool] {
+				continue
+			}
+
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       matchedTool,
 				Confidence: detection.ConfidenceHigh,
 				Detail:     fmt.Sprintf("Assisted-By trailer with tool %s", matchedTool),
 			})
+			seen[matchedTool] = true
 		}
 	}
 	return findings
 }
 
-func (d *Detector) detectCustomTrailers(input detection.Input) []detection.Finding {
+func (d *Detector) detectMessagePatterns(input detection.Input) []detection.Finding {
 	var findings []detection.Finding
 	for _, p := range commitMessagePatterns {
 		if confidence, isDetected := p.check(input.CommitMessage); isDetected {
@@ -182,7 +188,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		d.detectTrailerAssistedBy(input),
 
 		// add findings for other custom trailers
-		d.detectCustomTrailers(input),
+		d.detectMessagePatterns(input),
 	)
 
 	return findings
