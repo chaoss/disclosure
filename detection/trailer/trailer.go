@@ -7,32 +7,30 @@ import (
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
-var toolLineReplacePattern = regexp.MustCompile(`\s*<[^>]+>`)
+var trailerEmailPattern = regexp.MustCompile(`\s*<[^>]+>`)
 
-func extractToolsFromText(text string) []string {
+func extractToolFromText(text string) string {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return nil
+		return ""
 	}
-	text = toolLineReplacePattern.ReplaceAllString(text, "")
-	parts := strings.Split(text, "\n")
-	var tools []string
-	for _, p := range parts {
-		p = strings.TrimSpace(strings.Split(strings.TrimSpace(p), "(")[0])
-		if p == "" {
-			continue
-		}
-		words := strings.Fields(p)
-		for i, w := range words {
-			if len(w) > 0 {
-				words[i] = strings.ToUpper(w[:1]) + w[1:]
-			}
-		}
-		tools = append(tools, strings.Join(words, " "))
+
+	// removing the email part e.g. Aider <noreply@aider.chat>
+	text = strings.TrimSpace(trailerEmailPattern.ReplaceAllString(text, ""))
+
+	// trimming any values in brackets e.g. Claude (Anthropic)
+	text, _, _ = strings.Cut(text, "(")
+
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return ""
 	}
-	return tools
+
+	return cases.Title(language.English, cases.NoLower).String(text)
 }
 
 var commitMessagePatterns = []struct {
@@ -127,10 +125,7 @@ func (d *Detector) detectTrailerCoauthoredBy(input detection.Input) []detection.
 func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Finding {
 	var findings []detection.Finding
 
-	matches := detection.AssistedByPattern.FindAllStringSubmatch(
-		input.CommitMessage,
-		-1,
-	)
+	matches := detection.AssistedByPattern.FindAllStringSubmatch(input.CommitMessage, -1)
 	if len(matches) == 0 {
 		return findings
 	}
@@ -141,19 +136,18 @@ func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Fi
 			continue
 		}
 
-		for _, matchedTool := range extractToolsFromText(match[1]) {
-			if seen[matchedTool] {
-				continue
-			}
-
-			findings = append(findings, detection.Finding{
-				Detector:   d.Name(),
-				Tool:       matchedTool,
-				Confidence: detection.ConfidenceHigh,
-				Detail:     fmt.Sprintf("Assisted-By trailer with tool %s", matchedTool),
-			})
-			seen[matchedTool] = true
+		matchedTool := extractToolFromText(match[1])
+		if matchedTool == "" || seen[matchedTool] {
+			continue
 		}
+
+		findings = append(findings, detection.Finding{
+			Detector:   d.Name(),
+			Tool:       matchedTool,
+			Confidence: detection.ConfidenceHigh,
+			Detail:     fmt.Sprintf("Assisted-By trailer with tool %s", matchedTool),
+		})
+		seen[matchedTool] = true
 	}
 	return findings
 }
