@@ -178,9 +178,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		return nil
 	}
 
-	var findings []detection.Finding
-
-	findings = slices.Concat(
+	return slices.Concat(
 		// add findings for co-authored-by
 		d.detectTrailerCoauthoredBy(input),
 
@@ -190,6 +188,4 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		// add findings for other custom trailers
 		d.detectMessagePatterns(input),
 	)
-
-	return findings
 }
