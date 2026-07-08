@@ -15,32 +15,7 @@ var toolPatterns []struct {
 }
 
 func init() {
-	tools := []string{
-		"Claude Code",
-		"Claude",
-		"GitHub Copilot",
-		"Copilot",
-		"Cursor",
-		"Aider",
-		"OpenAI Codex",
-		"Codex",
-		"Gemini Code Assist",
-		"Amazon Q Developer",
-		"Amazon Q",
-		"Devin",
-		"Cline",
-		"Continue.dev",
-		"Sourcegraph Cody",
-		"Cody",
-		"JetBrains AI",
-		"CodeRabbit",
-		"ChatGPT",
-		"t3.chat",
-		"GPT-4",
-		"Windsurf",
-	}
-
-	for _, name := range tools {
+	for _, name := range detection.SupportedToolsInMentions {
 		escaped := regexp.QuoteMeta(name)
 		pattern := regexp.MustCompile(`(?i)\b` + escaped + `\b`)
 		toolPatterns = append(toolPatterns, struct {

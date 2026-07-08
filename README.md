@@ -104,9 +104,8 @@ import (
 	"fmt"
 
 	"github.com/chaoss/disclosure/detection"
-	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
-	"github.com/chaoss/disclosure/detection/message"
+	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/chaoss/disclosure/detection/toolmention"
 	"github.com/chaoss/disclosure/scan"
 )
@@ -114,9 +113,8 @@ import (
 func main() {
 	detectors := []detection.Detector{
 		&committer.Detector{},
-		&coauthor.Detector{},
-		&message.Detector{},
 		&toolmention.Detector{},
+		&trailer.Detector{},
 	}
 
 	report, err := scan.ScanCommitRange("/path/to/repo", "base..head", detectors)
@@ -169,10 +167,9 @@ go test ./...
 ```
 detection/              Core types: Detector interface, Finding, Confidence, Input
 detection/committer/    Known AI bot committer emails
-detection/coauthor/     Co-Authored-By trailer parsing
 detection/gitnotes/     git-ai authorship logs from refs/notes/ai
-detection/message/      Commit message pattern matching
 detection/toolmention/  AI tool name mentions in text
+detection/trailer/      Look for known trailers in commit message
 gitops/                 go-git wrapper for reading commits
 scan/                   Orchestration: run detectors over commits or text
 output/                 JSON and human-readable text formatters

@@ -204,7 +204,7 @@ func TestFilterReport(t *testing.T) {
 				Hash: "abc123",
 				Findings: []detection.Finding{
 					{Detector: "toolmention", Tool: "Claude", Confidence: 1, Detail: "text"},
-					{Detector: "coauthor", Tool: "Claude Code", Confidence: 3, Detail: "trailer"},
+					{Detector: "trailer", Tool: "Claude Code", Confidence: 3, Detail: "trailer"},
 				},
 			},
 		},

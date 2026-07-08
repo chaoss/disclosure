@@ -10,12 +10,10 @@ import (
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
-	"github.com/chaoss/disclosure/detection/assistedby"
-	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
-	"github.com/chaoss/disclosure/detection/message"
 	"github.com/chaoss/disclosure/detection/toolmention"
+	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/chaoss/disclosure/output"
 	"github.com/chaoss/disclosure/scan"
 	"github.com/spf13/cobra"
@@ -33,11 +31,9 @@ const (
 
 func allDetectors() []detection.Detector {
 	return []detection.Detector{
-		&assistedby.Detector{},
 		&committer.Detector{},
-		&coauthor.Detector{},
 		&gitnotes.Detector{},
-		&message.Detector{},
+		&trailer.Detector{},
 		&toolmention.Detector{},
 	}
 }
@@ -45,8 +41,8 @@ func allDetectors() []detection.Detector {
 // Run is the main entry point for the CLI. Returns an exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
 	rootCmd := &cobra.Command{
-		Use:           "disclosure",
-		Short:         "Detect AI-generated contributions",
+		Use:   "disclosure",
+		Short: "Detect AI-generated contributions",
 		Long: `Disclosure is a standalone CLI tool that detects AI-generated contributions
 in git repositories. It works entirely from git-level data (commit emails,
 messages, trailers) with no platform API dependencies.

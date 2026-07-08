@@ -17,7 +17,7 @@ func sampleReport() scan.Report {
 				Hash: "abc123def456",
 				Findings: []detection.Finding{
 					{
-						Detector:   "coauthor",
+						Detector:   "trailer",
 						Tool:       "Claude Code",
 						Confidence: detection.ConfidenceHigh,
 						Detail:     "Co-Authored-By trailer with email noreply@anthropic.com",

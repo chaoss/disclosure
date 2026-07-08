@@ -8,23 +8,19 @@ import (
 	"time"
 
 	"github.com/chaoss/disclosure/detection"
-	"github.com/chaoss/disclosure/detection/assistedby"
-	"github.com/chaoss/disclosure/detection/coauthor"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
-	"github.com/chaoss/disclosure/detection/message"
 	"github.com/chaoss/disclosure/detection/toolmention"
+	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
 func allDetectors() []detection.Detector {
 	return []detection.Detector{
-		&assistedby.Detector{},
 		&committer.Detector{},
-		&coauthor.Detector{},
 		&gitnotes.Detector{},
-		&message.Detector{},
+		&trailer.Detector{},
 		&toolmention.Detector{},
 	}
 }
@@ -173,9 +169,9 @@ func TestScanCommit(t *testing.T) {
 	foundCoauthor := false
 	foundAssistedBy := false
 	for _, f := range result.Findings {
-		if f.Detector == "coauthor" && f.Tool == "Cursor" {
+		if f.Detector == "trailer" && f.Tool == "Cursor" {
 			foundCoauthor = true
-		} else if f.Detector == "assistedby" && f.Tool == "Kimi K2.6" {
+		} else if f.Detector == "trailer" && f.Tool == "Kimi K2.6" {
 			foundAssistedBy = true
 		}
 	}

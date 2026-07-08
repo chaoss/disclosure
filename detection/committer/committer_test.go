@@ -8,7 +8,7 @@ import (
 
 func TestDetectAllKnownEmails(t *testing.T) {
 	d := &Detector{}
-	for email, expectedName := range knownAgentCommitters {
+	for email, expectedName := range detection.KnownAgentCommitters {
 		input := detection.Input{CommitEmail: email}
 		findings := d.Detect(input)
 		if len(findings) != 1 {
