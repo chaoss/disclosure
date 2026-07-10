@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/text v0.31.0
 )
 
 require (

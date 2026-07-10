@@ -10,8 +10,8 @@ import (
 
 // metadata represents the JSON metadata section of a git-ai authorship log.
 type metadata struct {
-	SchemaVersion string                    `json:"schema_version"`
-	Prompts       map[string]promptRecord   `json:"prompts"`
+	SchemaVersion string                  `json:"schema_version"`
+	Prompts       map[string]promptRecord `json:"prompts"`
 }
 
 type promptRecord struct {
@@ -45,7 +45,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		return nil
 	}
 
-	if !strings.HasPrefix(meta.SchemaVersion, "authorship/") {
+	if !strings.HasPrefix(meta.SchemaVersion, detection.GitNotesAuthorshipPrefix) {
 		return nil
 	}
 
