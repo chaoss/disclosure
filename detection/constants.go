@@ -88,3 +88,6 @@ var ReplitAttributionRegex = `(?m)^Replit-Commit-Author:\s*(Agent|Assistant)(?:\
 
 // GitNotesAuthorshipPrefix Authorship prefix to check as a precondition in git notes
 var GitNotesAuthorshipPrefix = "authorship/"
+
+// TrailerEmailPattern Regex to match email address in commit trailers
+var TrailerEmailPattern = regexp.MustCompile(`\s*<[^>]+>`)

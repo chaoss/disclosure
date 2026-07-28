@@ -11,26 +11,24 @@ import (
 	"golang.org/x/text/language"
 )
 
-var trailerEmailPattern = regexp.MustCompile(`\s*<[^>]+>`)
-
-func extractToolFromText(text string) string {
+func extractToolFromText(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return ""
+		return "", fmt.Errorf("empty text found")
 	}
 
 	// removing the email part e.g. Aider <noreply@aider.chat>
-	text = strings.TrimSpace(trailerEmailPattern.ReplaceAllString(text, ""))
+	text = strings.TrimSpace(detection.TrailerEmailPattern.ReplaceAllString(text, ""))
 
 	// trimming any values in brackets e.g. Claude (Anthropic)
 	text, _, _ = strings.Cut(text, "(")
 
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return ""
+		return "", fmt.Errorf("no contents found in text")
 	}
 
-	return cases.Title(language.English, cases.NoLower).String(text)
+	return cases.Title(language.English, cases.NoLower).String(text), nil
 }
 
 var commitMessagePatterns = []struct {
@@ -96,10 +94,10 @@ type Detector struct{}
 
 func (d *Detector) Name() string { return "trailer" }
 
-func (d *Detector) detectTrailerCoauthoredBy(input detection.Input) []detection.Finding {
+func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.Finding {
 	var findings []detection.Finding
 
-	matches := detection.CoAuthorPattern.FindAllStringSubmatch(input.CommitMessage, -1)
+	matches := detection.CoAuthorPattern.FindAllStringSubmatch(commitMessage, -1)
 	if len(matches) == 0 {
 		return findings
 	}
@@ -122,10 +120,10 @@ func (d *Detector) detectTrailerCoauthoredBy(input detection.Input) []detection.
 	return findings
 }
 
-func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Finding {
+func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Finding {
 	var findings []detection.Finding
 
-	matches := detection.AssistedByPattern.FindAllStringSubmatch(input.CommitMessage, -1)
+	matches := detection.AssistedByPattern.FindAllStringSubmatch(commitMessage, -1)
 	if len(matches) == 0 {
 		return findings
 	}
@@ -136,8 +134,8 @@ func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Fi
 			continue
 		}
 
-		matchedTool := extractToolFromText(match[1])
-		if matchedTool == "" || seen[matchedTool] {
+		matchedTool, err := extractToolFromText(match[1])
+		if err != nil || seen[matchedTool] {
 			continue
 		}
 
@@ -152,10 +150,10 @@ func (d *Detector) detectTrailerAssistedBy(input detection.Input) []detection.Fi
 	return findings
 }
 
-func (d *Detector) detectMessagePatterns(input detection.Input) []detection.Finding {
+func (d *Detector) detectMessagePatterns(commitMessage string) []detection.Finding {
 	var findings []detection.Finding
 	for _, p := range commitMessagePatterns {
-		if confidence, isDetected := p.check(input.CommitMessage); isDetected {
+		if confidence, isDetected := p.check(commitMessage); isDetected {
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       p.name,
@@ -168,18 +166,19 @@ func (d *Detector) detectMessagePatterns(input detection.Input) []detection.Find
 }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	if input.CommitMessage == "" {
-		return nil
+	commitMessage, err := input.GetCommitMessage()
+	if err != nil {
+		return []detection.Finding{}
 	}
 
 	return slices.Concat(
 		// add findings for co-authored-by
-		d.detectTrailerCoauthoredBy(input),
+		d.detectTrailerCoauthoredBy(commitMessage),
 
 		// add findings for assisted-by
-		d.detectTrailerAssistedBy(input),
+		d.detectTrailerAssistedBy(commitMessage),
 
 		// add findings for other custom trailers
-		d.detectMessagePatterns(input),
+		d.detectMessagePatterns(commitMessage),
 	)
 }
