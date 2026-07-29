@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -24,9 +25,10 @@ type Step struct {
 
 // ActionConfig represents the extracted configuration for a single use of the action.
 type ActionConfig struct {
-	Label         string `json:"label"`
-	MinConfidence string `json:"min_confidence"`
-	ScanPRBody    string `json:"scan_pr_body"`
+	Label           string `json:"label"`
+	LabelingEnabled string `json:"labeling_enabled"`
+	MinConfidence   string `json:"min_confidence"`
+	ScanPRBody      string `json:"scan_pr_body"`
 }
 
 // Config represents the extracted AI configurations from workflow files.
@@ -54,6 +56,7 @@ func DetectConfigs(repoPath string) (*Config, error) {
 	}
 
 	seenConfigs := make(map[ActionConfig]bool)
+	configs := []ActionConfig{}
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -80,24 +83,33 @@ func DetectConfigs(repoPath string) (*Config, error) {
 				uses := strings.TrimSpace(step.Uses)
 				if strings.HasPrefix(uses, "chaoss/disclosure@") || uses == "chaoss/disclosure" {
 					ac := ActionConfig{
-						Label:         getString(step.With, "label", "ai-detected"),
-						MinConfidence: getString(step.With, "min-confidence", "low"),
-						ScanPRBody:    getString(step.With, "scan-pr-body", "true"),
+						Label:           getString(step.With, "label", "ai-detected"),
+						LabelingEnabled: getString(step.With, "labeling-enabled", "false"),
+						MinConfidence:   getString(step.With, "min-confidence", "low"),
+						ScanPRBody:      getString(step.With, "scan-pr-body", "true"),
+					}
+					if seenConfigs[ac] {
+						continue
 					}
 					seenConfigs[ac] = true
+					configs = append(configs, ac)
 				}
 			}
 		}
 	}
 
-	var configs []ActionConfig
-	for c := range seenConfigs {
-		configs = append(configs, c)
-	}
-
-	if configs == nil {
-		configs = []ActionConfig{}
-	}
+	sort.Slice(configs, func(i, j int) bool {
+		if configs[i].Label != configs[j].Label {
+			return configs[i].Label < configs[j].Label
+		}
+		if configs[i].LabelingEnabled != configs[j].LabelingEnabled {
+			return configs[i].LabelingEnabled < configs[j].LabelingEnabled
+		}
+		if configs[i].MinConfidence != configs[j].MinConfidence {
+			return configs[i].MinConfidence < configs[j].MinConfidence
+		}
+		return configs[i].ScanPRBody < configs[j].ScanPRBody
+	})
 
 	return &Config{Configs: configs}, nil
 }
