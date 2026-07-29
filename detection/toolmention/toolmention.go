@@ -3,7 +3,6 @@ package toolmention
 import (
 	"fmt"
 	"regexp"
-	"strings"
 
 	"github.com/chaoss/disclosure/detection"
 )
@@ -30,22 +29,13 @@ type Detector struct{}
 func (d *Detector) Name() string { return "toolmention" }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	text := input.Text
-	if input.CommitMessage != "" {
-		if text != "" {
-			text = text + "\n" + input.CommitMessage
-		} else {
-			text = input.CommitMessage
-		}
-	}
-
-	if strings.TrimSpace(text) == "" {
-		return nil
+	text, err := input.GetTextWithCommitMessage()
+	if err != nil {
+		return []detection.Finding{}
 	}
 
 	var findings []detection.Finding
 	seen := map[string]bool{}
-
 	for _, tp := range toolPatterns {
 		if seen[tp.name] {
 			continue

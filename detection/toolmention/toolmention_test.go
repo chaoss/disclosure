@@ -55,6 +55,11 @@ func TestDetect(t *testing.T) {
 			wantTools: nil,
 		},
 		{
+			name:      "empty input with spaces",
+			input:     detection.Input{Text: "   ", CommitMessage: "\n   \n"},
+			wantTools: nil,
+		},
+		{
 			name:      "empty input",
 			input:     detection.Input{},
 			wantTools: nil,

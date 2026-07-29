@@ -1,5 +1,10 @@
 package detection
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Confidence represents how confident we are that a finding indicates AI involvement.
 type Confidence int
 
@@ -34,6 +39,12 @@ type Finding struct {
 	Detail     string     `json:"detail"`
 }
 
+// Detector is the interface that all detection strategies implement.
+type Detector interface {
+	Name() string
+	Detect(input Input) []Finding
+}
+
 // Input provides data for detectors to examine. Each detector reads the fields
 // it cares about and ignores the rest.
 type Input struct {
@@ -45,8 +56,32 @@ type Input struct {
 	RepoPath      string
 }
 
-// Detector is the interface that all detection strategies implement.
-type Detector interface {
-	Name() string
-	Detect(input Input) []Finding
+func (input *Input) GetCommitEmail() (string, error) {
+	return getCommitField(input.CommitEmail, fieldCommitEmail)
+}
+
+func (input *Input) GetCommitMessage() (string, error) {
+	return getCommitField(input.CommitMessage, fieldCommitMessage)
+}
+
+func (input *Input) GetTextWithCommitMessage() (string, error) {
+	text := strings.TrimSpace(input.Text)
+	commitMessage, _ := input.GetCommitMessage()
+
+	var result []string
+	if text != "" {
+		result = append(result, text)
+	}
+	if commitMessage != "" {
+		result = append(result, commitMessage)
+	}
+	if len(result) == 0 {
+		return "", fmt.Errorf("no text or commit message, blank contents")
+	}
+
+	return strings.Join(result, "\n"), nil
+}
+
+func (input *Input) GetNotes() (GitnoteParseResult, error) {
+	return parseGitnotes(input.Notes)
 }

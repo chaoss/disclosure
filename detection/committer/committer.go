@@ -25,9 +25,9 @@ type Detector struct{}
 func (d *Detector) Name() string { return "committer" }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	email := strings.ToLower(strings.TrimSpace(input.CommitEmail))
-	if email == "" {
-		return nil
+	email, err := input.GetCommitEmail()
+	if err != nil {
+		return []detection.Finding{}
 	}
 
 	// Direct match against known emails
