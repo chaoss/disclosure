@@ -99,6 +99,86 @@ func TestDetect(t *testing.T) {
 			input:     detection.Input{Text: "Devin created this PR"},
 			wantTools: []string{"Devin"},
 		},
+		{
+			name:      "Qwen coder variant match",
+			input:     detection.Input{Text: "Running Qwen as a local autocomplete provider"},
+			wantTools: []string{"Qwen"},
+		},
+		{
+			name:      "Kimi K3 tool match",
+			input:     detection.Input{Text: "Passed the massive log files into Kimi K3 for error analysis"},
+			wantTools: []string{"Kimi"},
+		},
+		{
+			name:      "DeepSeek, Qwen, and Llama open weights",
+			input:     detection.Input{Text: "Tested using DeepSeek, Qwen, and Llama locally"},
+			wantTools: []string{"DeepSeek", "Qwen", "Llama"},
+		},
+		{
+			name:      "Mistral and Codestral variations",
+			input:     detection.Input{Text: "Switched our completions from Mistral to Codestral"},
+			wantTools: []string{"Codestral", "Mistral"},
+		},
+		{
+			name:      "Z.ai ecosystem tools",
+			input:     detection.Input{Text: "Used GLM inside ZCode via Z.ai orchestrator"},
+			wantTools: []string{"Z.ai", "GLM", "ZCode"},
+		},
+		{
+			name:      "Vibe coding platforms bolt and lovable",
+			input:     detection.Input{Text: "Scaffolded with Bolt.new and then customized via Lovable.dev"},
+			wantTools: []string{"Bolt.new", "Lovable.dev"},
+		},
+		{
+			name:      "Codeium and rebranded Qodo",
+			input:     detection.Input{Text: "Codeium handles completions while Qodo and CodiumAI run test suites"},
+			wantTools: []string{"Codeium", "Qodo", "CodiumAI"},
+		},
+		{
+			name:      "Replit Agent full stack",
+			input:     detection.Input{Text: "Replit Agent deployed the workspace inside Replit"},
+			wantTools: []string{"Replit Agent", "Replit"},
+		},
+		{
+			name:      "Mastra and CodeGPT automation",
+			input:     detection.Input{Text: "Automated PR reviews handled by Mastra with CodeGPT engine"},
+			wantTools: []string{"CodeGPT", "Mastra"},
+		},
+		{
+			name:      "Vercel v0 explicit tool match",
+			input:     detection.Input{Text: "Frontend generated entirely using Vercel v0 templates"},
+			wantTools: []string{"Vercel v0"},
+		},
+		{
+			name:      "Tabnine and specialized assistants",
+			input:     detection.Input{Text: "Compared Tabnine vs Sourcery vs Augment Code"},
+			wantTools: []string{"Tabnine", "Sourcery", "Augment Code"},
+		},
+		{
+			name:      "OpenClaw core ecosystem detection",
+			input:     detection.Input{Text: "Configured our local orchestration suite via OpenClaw"},
+			wantTools: []string{"OpenClaw"},
+		},
+		{
+			name:      "OpenClaw alternative frameworks",
+			input:     detection.Input{Text: "Running the daemon through nanoclaw and picoclaw wrappers"},
+			wantTools: []string{"NanoClaw", "PicoClaw"},
+		},
+		{
+			name:      "OpenClaude generated code in PR",
+			input:     detection.Input{Text: "Code in this PR has been generated with OpenClaude"},
+			wantTools: []string{"OpenClaude"},
+		},
+		{
+			name:      "Yi AI",
+			input:     detection.Input{Text: "Test cases generated with Yi AI"},
+			wantTools: []string{"Yi AI"},
+		},
+		{
+			name:      "Specific model from 01.ai",
+			input:     detection.Input{Text: "Test cases generated with Yi-Large by 01.ai"},
+			wantTools: []string{"Yi-Large", "01.ai"},
+		},
 	}
 
 	for _, tt := range tests {
