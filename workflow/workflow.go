@@ -36,11 +36,18 @@ type Config struct {
 	Configs []ActionConfig `json:"configs"`
 }
 
+const disclosureActionUse = "chaoss/disclosure/action"
+
 func getString(m map[string]interface{}, key, def string) string {
 	if v, ok := m[key]; ok {
 		return fmt.Sprintf("%v", v)
 	}
 	return def
+}
+
+func isDisclosureActionUse(uses string) bool {
+	uses = strings.TrimSpace(uses)
+	return uses == disclosureActionUse || strings.HasPrefix(uses, disclosureActionUse+"@")
 }
 
 // DetectConfigs scans the .github/workflows directory for the chaoss/disclosure action
@@ -80,8 +87,7 @@ func DetectConfigs(repoPath string) (*Config, error) {
 
 		for _, job := range wf.Jobs {
 			for _, step := range job.Steps {
-				uses := strings.TrimSpace(step.Uses)
-				if strings.HasPrefix(uses, "chaoss/disclosure@") || uses == "chaoss/disclosure" {
+				if isDisclosureActionUse(step.Uses) {
 					ac := ActionConfig{
 						Label:           getString(step.With, "label", "ai-detected"),
 						LabelingEnabled: getString(step.With, "labeling-enabled", "false"),

@@ -18,7 +18,7 @@ jobs:
   test:
     steps:
       - uses: actions/checkout@v4
-      - uses: chaoss/disclosure@main
+      - uses: chaoss/disclosure/action@main
         with:
           label: custom-ai-label
           labeling-enabled: "true"
@@ -64,7 +64,7 @@ func TestDetectConfigsDefault(t *testing.T) {
 jobs:
   test:
     steps:
-      - uses: chaoss/disclosure@v1
+      - uses: chaoss/disclosure/action@v1
 `
 	if err := os.WriteFile(filepath.Join(workflowsDir, "test.yml"), []byte(yamlContent), 0644); err != nil {
 		t.Fatal(err)
@@ -94,6 +94,72 @@ jobs:
 	}
 }
 
+func TestDetectConfigsReadmeSyntax(t *testing.T) {
+	tempDir := t.TempDir()
+	workflowsDir := filepath.Join(tempDir, ".github", "workflows")
+	if err := os.MkdirAll(workflowsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	yamlContent := `
+name: AI Disclosure
+on:
+  pull_request:
+jobs:
+  disclose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: chaoss/disclosure/action@main
+`
+	if err := os.WriteFile(filepath.Join(workflowsDir, "ai_detection.yml"), []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := DetectConfigs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := ActionConfig{
+		Label:           "ai-detected",
+		LabelingEnabled: "false",
+		MinConfidence:   "low",
+		ScanPRBody:      "true",
+	}
+	if len(config.Configs) != 1 {
+		t.Fatalf("expected 1 config, got %d: %#v", len(config.Configs), config.Configs)
+	}
+	if config.Configs[0] != want {
+		t.Errorf("config = %#v, want %#v", config.Configs[0], want)
+	}
+}
+
+func TestDetectConfigsIgnoresRepositoryRootReference(t *testing.T) {
+	tempDir := t.TempDir()
+	workflowsDir := filepath.Join(tempDir, ".github", "workflows")
+	if err := os.MkdirAll(workflowsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	yamlContent := `
+jobs:
+  test:
+    steps:
+      - uses: chaoss/disclosure@main
+`
+	if err := os.WriteFile(filepath.Join(workflowsDir, "test.yml"), []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := DetectConfigs(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(config.Configs) != 0 {
+		t.Fatalf("expected empty configs, got %#v", config.Configs)
+	}
+}
+
 func TestDetectConfigsNoWorkflows(t *testing.T) {
 	tempDir := t.TempDir()
 	config, err := DetectConfigs(tempDir)
@@ -116,7 +182,7 @@ func TestDetectConfigsMultipleSortedAndDeduplicated(t *testing.T) {
 jobs:
   test:
     steps:
-      - uses: chaoss/disclosure@main
+      - uses: chaoss/disclosure/action@main
         with:
           label: z-ai
           labeling-enabled: "true"
@@ -127,13 +193,13 @@ jobs:
 jobs:
   test:
     steps:
-      - uses: chaoss/disclosure@main
+      - uses: chaoss/disclosure/action@main
         with:
           label: a-ai
           labeling-enabled: "false"
           min-confidence: low
           scan-pr-body: "true"
-      - uses: chaoss/disclosure@main
+      - uses: chaoss/disclosure/action@main
         with:
           label: z-ai
           labeling-enabled: "true"
