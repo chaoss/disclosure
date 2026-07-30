@@ -42,7 +42,7 @@ func FormatText(w io.Writer, report scan.Report) error {
 		}
 		fmt.Fprintf(w, "Commit %s\n", cr.Hash[:12])
 		for _, f := range cr.Findings {
-			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.Tool, f.Detector, f.Detail)
+			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
 		}
 	}
 
@@ -58,7 +58,7 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
 	for _, f := range findings {
-		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.Tool, f.Detector, f.Detail)
+		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ func TestDetect(t *testing.T) {
 		name           string
 		message        string
 		wantTools      []string
+		wantModels     []string
 		wantConfidence []detection.Confidence
 	}{
 		// Co-Authored-By tests start here
@@ -19,54 +20,98 @@ func TestDetect(t *testing.T) {
 			name:           "coauthor: Claude trailer with Opus model",
 			message:        "fix: update handler\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>",
 			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{"Opus 4"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: Claude trailer with Sonnet model",
 			message:        "fix: update handler\n\nCo-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>",
 			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{"Sonnet 4"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: Cursor trailer",
 			message:        "refactor: extract method\n\nCo-Authored-By: Cursor <cursoragent@cursor.com>",
 			wantTools:      []string{"Cursor"},
+			wantModels:     []string{""},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: Aider trailer with model name",
 			message:        "feat: add endpoint\n\nCo-Authored-By: aider (gpt-4o) <noreply@aider.chat>",
 			wantTools:      []string{"Aider"},
+			wantModels:     []string{"gpt-4o"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: Aider trailer with different model",
 			message:        "feat: add endpoint\n\nCo-Authored-By: aider (claude-3.5-sonnet) <noreply@aider.chat>",
 			wantTools:      []string{"Aider"},
+			wantModels:     []string{"claude-3.5-sonnet"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: Cursor trailer with parenthesized model",
+			message:        "refactor: extract method\n\nCo-Authored-By: Cursor (composer 2.5) <cursoragent@cursor.com>",
+			wantTools:      []string{"Cursor"},
+			wantModels:     []string{"composer 2.5"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: Copilot trailer with parenthesized model",
+			message:        "feat: add endpoint\n\nCo-Authored-By: Copilot (gpt-4.1) <copilot@github.com>",
+			wantTools:      []string{"Copilot"},
+			wantModels:     []string{"gpt-4.1"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: Claude trailer with parenthesized model",
+			message:        "fix: update handler\n\nCo-Authored-By: Claude Code (Opus 4.1) <noreply@anthropic.com>",
+			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{"Opus 4.1"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: multiple trailers with Claude and human",
 			message:        "fix: bug\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>\nCo-Authored-By: Alice <alice@example.com>",
 			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{"Opus 4"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: multiple AI trailers",
 			message:        "fix: bug\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>\nCo-Authored-By: aider (gpt-4o) <noreply@aider.chat>",
 			wantTools:      []string{"Claude Code", "Aider"},
+			wantModels:     []string{"Opus 4", "gpt-4o"},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh, detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: same tool with distinct models",
+			message:        "fix: bug\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>\nCo-Authored-By: Claude Sonnet 4 <noreply@anthropic.com>",
+			wantTools:      []string{"Claude Code", "Claude Code"},
+			wantModels:     []string{"Opus 4", "Sonnet 4"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh, detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: same tool and model deduplicated",
+			message:        "fix: bug\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>",
+			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{"Opus 4"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: case variation",
 			message:        "fix: thing\n\nco-authored-by: Claude <noreply@anthropic.com>",
 			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{""},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
 			name:           "coauthor: CO-AUTHORED-BY uppercase",
 			message:        "fix: thing\n\nCO-AUTHORED-BY: Claude <noreply@anthropic.com>",
 			wantTools:      []string{"Claude Code"},
+			wantModels:     []string{""},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
@@ -204,6 +249,7 @@ Signed-off-by: some human <test@example.com>
 			name:           "assistedby: Two different attributions (assistedby and coauthor) one with model name, other with email address",
 			message:        "Add validation logic\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>\nAssisted-by: GitHub Copilot",
 			wantTools:      []string{"Claude Code", "GitHub Copilot"},
+			wantModels:     []string{"Sonnet 4.6", ""},
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh, detection.ConfidenceHigh},
 		},
 		{
@@ -353,9 +399,11 @@ Signed-off-by: some human <test@example.com>
 		t.Run(tt.name, func(t *testing.T) {
 			findings := d.Detect(detection.Input{CommitMessage: tt.message})
 			gotTools := make([]string, len(findings))
+			gotModels := make([]string, len(findings))
 			gotConfidence := make([]detection.Confidence, len(findings))
 			for i, f := range findings {
 				gotTools[i] = f.Tool
+				gotModels[i] = f.Model
 				gotConfidence[i] = f.Confidence
 
 				if f.Detector != "trailer" {
@@ -365,6 +413,7 @@ Signed-off-by: some human <test@example.com>
 
 			if len(gotTools) == 0 {
 				gotTools = nil
+				gotModels = nil
 			}
 			if len(gotTools) != len(tt.wantTools) {
 				t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
@@ -374,6 +423,19 @@ Signed-off-by: some human <test@example.com>
 				if gotTools[i] != tt.wantTools[i] {
 					t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
 					return
+				}
+			}
+
+			if tt.wantModels != nil {
+				if len(gotModels) != len(tt.wantModels) {
+					t.Errorf("models = %v, want %v", gotModels, tt.wantModels)
+					return
+				}
+				for i := range gotModels {
+					if gotModels[i] != tt.wantModels[i] {
+						t.Errorf("models = %v, want %v", gotModels, tt.wantModels)
+						return
+					}
 				}
 			}
 

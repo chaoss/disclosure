@@ -64,19 +64,22 @@ src/lib.rs
 }`
 
 	tests := []struct {
-		name      string
-		notes     string
-		wantTools []string
+		name       string
+		notes      string
+		wantTools  []string
+		wantModels []string
 	}{
 		{
-			name:      "valid git-ai note with single tool",
-			notes:     validNote,
-			wantTools: []string{"cursor"},
+			name:       "valid git-ai note with single tool",
+			notes:      validNote,
+			wantTools:  []string{"cursor"},
+			wantModels: []string{"claude-4.5-opus"},
 		},
 		{
-			name:      "multiple tools in note",
-			notes:     multiToolNote,
-			wantTools: []string{"cursor", "claude-code"},
+			name:       "multiple tools in note",
+			notes:      multiToolNote,
+			wantTools:  []string{"cursor", "claude-code"},
+			wantModels: []string{"claude-4.5-opus", "claude-3-sonnet"},
 		},
 		{
 			name:      "empty notes",
@@ -109,8 +112,10 @@ src/lib.rs
 		t.Run(tt.name, func(t *testing.T) {
 			findings := d.Detect(detection.Input{Notes: tt.notes})
 			gotTools := make([]string, len(findings))
+			gotModels := make([]string, len(findings))
 			for i, f := range findings {
 				gotTools[i] = f.Tool
+				gotModels[i] = f.Model
 				if f.Confidence != detection.ConfidenceHigh {
 					t.Errorf("confidence = %d, want %d", f.Confidence, detection.ConfidenceHigh)
 				}
@@ -121,6 +126,7 @@ src/lib.rs
 
 			if len(gotTools) == 0 {
 				gotTools = nil
+				gotModels = nil
 			}
 
 			if len(gotTools) != len(tt.wantTools) {
@@ -138,7 +144,69 @@ src/lib.rs
 					t.Errorf("unexpected tool %q, want one of %v", g, tt.wantTools)
 				}
 			}
+
+			if tt.wantModels != nil {
+				if len(gotModels) != len(tt.wantModels) {
+					t.Errorf("models = %v, want %v", gotModels, tt.wantModels)
+					return
+				}
+				for i := range gotModels {
+					if gotModels[i] != tt.wantModels[i] {
+						t.Errorf("models = %v, want %v", gotModels, tt.wantModels)
+						return
+					}
+				}
+			}
 		})
+	}
+}
+
+func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
+	d := &Detector{}
+	note := `src/main.rs
+  first 1-10
+  second 11-20
+  third 21-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "base_commit_sha": "abc",
+  "prompts": {
+    "a-first": {
+      "agent_id": {
+        "tool": "cursor",
+        "model": "claude-4.5-opus"
+      }
+    },
+    "b-second": {
+      "agent_id": {
+        "tool": "cursor",
+        "model": "gpt-4o"
+      }
+    },
+    "c-third": {
+      "agent_id": {
+        "tool": "cursor",
+        "model": "claude-4.5-opus"
+      }
+    }
+  }
+}`
+
+	findings := d.Detect(detection.Input{Notes: note})
+	wantTools := []string{"cursor", "cursor"}
+	wantModels := []string{"claude-4.5-opus", "gpt-4o"}
+
+	if len(findings) != len(wantTools) {
+		t.Fatalf("expected %d findings, got %d: %#v", len(wantTools), len(findings), findings)
+	}
+	for i, finding := range findings {
+		if finding.Tool != wantTools[i] {
+			t.Errorf("tool[%d] = %q, want %q", i, finding.Tool, wantTools[i])
+		}
+		if finding.Model != wantModels[i] {
+			t.Errorf("model[%d] = %q, want %q", i, finding.Model, wantModels[i])
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package gitnotes
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/chaoss/disclosure/detection"
 )
@@ -10,24 +11,41 @@ type Detector struct{}
 
 func (d *Detector) Name() string { return "gitnotes" }
 
+type toolModelPair struct {
+	tool  string
+	model string
+}
+
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	parseResult, err := input.GetNotes()
 	if err != nil {
 		return []detection.Finding{}
 	}
 
-	seen := map[string]bool{}
+	seen := map[toolModelPair]bool{}
 	var findings []detection.Finding
-	for _, prompt := range parseResult.Metadata.Prompts {
+	promptIDs := make([]string, 0, len(parseResult.Metadata.Prompts))
+	for promptID := range parseResult.Metadata.Prompts {
+		promptIDs = append(promptIDs, promptID)
+	}
+	sort.Strings(promptIDs)
+
+	for _, promptID := range promptIDs {
+		prompt := parseResult.Metadata.Prompts[promptID]
 		tool := prompt.AgentID.Tool
-		if tool == "" || seen[tool] {
+		model := prompt.AgentID.Model
+		if tool == "" {
 			continue
 		}
-		seen[tool] = true
+		key := toolModelPair{tool: tool, model: model}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 
 		detail := fmt.Sprintf("git-ai authorship log (refs/notes/ai) attributes code to %s", tool)
-		if prompt.AgentID.Model != "" {
-			detail += fmt.Sprintf(" (model: %s)", prompt.AgentID.Model)
+		if model != "" {
+			detail += fmt.Sprintf(" (model: %s)", model)
 		}
 		if parseResult.AttributionFileCount > 0 {
 			detail += fmt.Sprintf(", %d file(s) attributed", parseResult.AttributionFileCount)
@@ -36,6 +54,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       tool,
+			Model:      model,
 			Confidence: detection.ConfidenceHigh,
 			Detail:     detail,
 		})

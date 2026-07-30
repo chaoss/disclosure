@@ -19,6 +19,7 @@ func sampleReport() scan.Report {
 					{
 						Detector:   "trailer",
 						Tool:       "Claude Code",
+						Model:      "Opus 4",
 						Confidence: detection.ConfidenceHigh,
 						Detail:     "Co-Authored-By trailer with email noreply@anthropic.com",
 					},
@@ -77,6 +78,9 @@ func TestFormatText(t *testing.T) {
 	if !strings.Contains(out, "Claude Code") {
 		t.Errorf("expected tool name in output, got:\n%s", out)
 	}
+	if !strings.Contains(out, "Claude Code [Opus 4]") {
+		t.Errorf("expected tool model in output, got:\n%s", out)
+	}
 	if !strings.Contains(out, "abc123def456") {
 		t.Errorf("expected commit hash in output, got:\n%s", out)
 	}
@@ -123,6 +127,7 @@ func TestFormatTextFindings(t *testing.T) {
 	var buf bytes.Buffer
 	findings := []detection.Finding{
 		{Detector: "toolmention", Tool: "Claude", Confidence: detection.ConfidenceLow, Detail: "text mentions Claude"},
+		{Detector: "gitnotes", Model: "gpt-4o", Confidence: detection.ConfidenceHigh, Detail: "git notes declares model"},
 	}
 
 	if err := FormatTextFindings(&buf, findings); err != nil {
@@ -132,7 +137,10 @@ func TestFormatTextFindings(t *testing.T) {
 	if !strings.Contains(buf.String(), "Claude") {
 		t.Errorf("expected Claude in text output, got:\n%s", buf.String())
 	}
-	if !strings.Contains(buf.String(), "1 AI signal") {
+	if !strings.Contains(buf.String(), "gpt-4o") {
+		t.Errorf("expected model-only finding in text output, got:\n%s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "2 AI signal") {
 		t.Errorf("expected signal count in output, got:\n%s", buf.String())
 	}
 }
