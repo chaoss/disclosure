@@ -117,7 +117,7 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "Mistral and Codestral variations",
 			input:     detection.Input{Text: "Switched our completions from Mistral to Codestral"},
-			wantTools: []string{"Codestral", "Mistral"},
+			wantTools: []string{"Mistral", "Codestral"},
 		},
 		{
 			name:      "Z.ai ecosystem tools",
@@ -178,6 +178,16 @@ func TestDetect(t *testing.T) {
 			name:      "Specific model from 01.ai",
 			input:     detection.Input{Text: "Test cases generated with Yi-Large by 01.ai"},
 			wantTools: []string{"Yi-Large", "01.ai"},
+		},
+		{
+			name:      "No Continue AI false positives",
+			input:     detection.Input{Text: "So I will continue to look into this issue"},
+			wantTools: nil,
+		},
+		{
+			name:      "Continue AI disclosure",
+			input:     detection.Input{Text: "Documentation generated using Continue.dev"},
+			wantTools: []string{"Continue.dev"},
 		},
 	}
 
