@@ -15,11 +15,15 @@ import (
 )
 
 var genericModelMentionIDs = map[string]struct{}{
+	"command r":          {},
 	"auto":               {},
 	"auto router":        {},
 	"free":               {},
 	"free models router": {},
+	"r1":                 {},
 	"router":             {},
+	"sonar":              {},
+	"spotlight":          {},
 }
 
 type OpenRouterResponse struct {

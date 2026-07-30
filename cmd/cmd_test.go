@@ -203,6 +203,28 @@ func TestRunScanInvalidRepo(t *testing.T) {
 	}
 }
 
+func TestRunTextAmbiguousModelProse(t *testing.T) {
+	inputPath := filepath.Join(t.TempDir(), "comment.txt")
+	text := strings.Join([]string{
+		"Press Command R to reload the page.",
+		"The R1 resistor value changed during testing.",
+		"The sonar data was noisy in shallow water.",
+		"The UI spotlight highlighted the primary button.",
+	}, "\n")
+	if err := os.WriteFile(inputPath, []byte(text), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"text", "--input=" + inputPath}, &stdout, &stderr)
+	if code != ExitNoAI {
+		t.Errorf("exit code = %d, want %d (stderr: %s, stdout: %s)", code, ExitNoAI, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "No AI involvement detected") {
+		t.Errorf("expected no-detection output, got: %s", stdout.String())
+	}
+}
+
 func TestFilterReport(t *testing.T) {
 	report := scan.Report{
 		Commits: []scan.CommitResult{

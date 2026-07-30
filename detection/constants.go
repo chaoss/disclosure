@@ -134,11 +134,15 @@ var SupportedToolsInMentions = []string{
 }
 
 var genericModelMentionIDs = map[string]struct{}{
+	"command r":          {},
 	"auto":               {},
 	"auto router":        {},
 	"free":               {},
 	"free models router": {},
+	"r1":                 {},
 	"router":             {},
+	"sonar":              {},
+	"spotlight":          {},
 }
 
 func appendCanonicalMentions(existing []string, candidates ...string) []string {

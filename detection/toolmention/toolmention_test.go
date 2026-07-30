@@ -95,6 +95,26 @@ func TestDetect(t *testing.T) {
 			wantTools: nil,
 		},
 		{
+			name:      "keyboard shortcut prose does not match ambiguous model",
+			input:     detection.Input{Text: "Press Command R to reload the page"},
+			wantTools: nil,
+		},
+		{
+			name:      "electronics prose does not match ambiguous model",
+			input:     detection.Input{Text: "The R1 resistor value changed during testing"},
+			wantTools: nil,
+		},
+		{
+			name:      "sonar prose does not match ambiguous model",
+			input:     detection.Input{Text: "The sonar data was noisy in shallow water"},
+			wantTools: nil,
+		},
+		{
+			name:      "spotlight prose does not match ambiguous model",
+			input:     detection.Input{Text: "The UI spotlight highlighted the primary button"},
+			wantTools: nil,
+		},
+		{
 			name:      "t3.chat mention",
 			input:     detection.Input{Text: "I used t3.chat to compare model outputs"},
 			wantTools: []string{"t3.chat"},
