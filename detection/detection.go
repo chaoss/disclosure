@@ -40,6 +40,20 @@ type Finding struct {
 	Detail     string     `json:"detail"`
 }
 
+func (f Finding) DisplayTool() string {
+	tool := strings.TrimSpace(f.Tool)
+	model := strings.TrimSpace(f.Model)
+
+	switch {
+	case tool == "":
+		return model
+	case model == "":
+		return tool
+	default:
+		return fmt.Sprintf("%s [%s]", tool, model)
+	}
+}
+
 // Detector is the interface that all detection strategies implement.
 type Detector interface {
 	Name() string

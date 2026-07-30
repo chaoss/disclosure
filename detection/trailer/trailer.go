@@ -99,19 +99,37 @@ type toolModelPair struct {
 	model string
 }
 
+func extractParenthesizedModel(text string) string {
+	start := strings.Index(text, "(")
+	if start < 0 {
+		return ""
+	}
+
+	end := strings.Index(text[start:], ")")
+	if end <= 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(text[start+1 : start+end])
+}
+
 func extractCoauthorModel(tool, namePart string) string {
 	namePart = strings.TrimSpace(namePart)
+	if model := extractParenthesizedModel(namePart); model != "" {
+		return model
+	}
 
 	switch tool {
-	case "Aider":
-		start := strings.Index(namePart, "(")
-		end := strings.Index(namePart, ")")
-		if start >= 0 && end > start {
-			return strings.TrimSpace(namePart[start+1 : end])
-		}
 	case "Claude Code":
 		if strings.EqualFold(namePart, "Claude") || strings.EqualFold(namePart, "Claude Code") {
 			return ""
+		}
+		namePartLower := strings.ToLower(namePart)
+		if strings.HasPrefix(namePartLower, "claude code ") {
+			return strings.TrimSpace(namePart[len("Claude Code "):])
+		}
+		if strings.HasPrefix(namePartLower, "claude ") {
+			return strings.TrimSpace(namePart[len("Claude "):])
 		}
 		return namePart
 	}
