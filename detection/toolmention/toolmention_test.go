@@ -189,6 +189,21 @@ func TestDetect(t *testing.T) {
 			input:     detection.Input{Text: "Documentation generated using Continue.dev"},
 			wantTools: []string{"Continue.dev"},
 		},
+		{
+			name:      "Command R disclosure",
+			input:     detection.Input{Text: "Using Command-R for bug fixes"},
+			wantTools: []string{"Command-R"},
+		},
+		{
+			name:      "Command R+ disclosure",
+			input:     detection.Input{Text: "Using Command-R+ for documentation"},
+			wantTools: []string{"Command-R+"},
+		},
+		{
+			name:      "Command R and R+ used and disclosed together",
+			input:     detection.Input{Text: "Using Command R for bug fixes and Command R+ for documentation"},
+			wantTools: []string{"Command-R+", "Command-R"},
+		},
 	}
 
 	for _, tt := range tests {

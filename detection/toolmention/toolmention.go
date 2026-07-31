@@ -3,6 +3,7 @@ package toolmention
 import (
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/chaoss/disclosure/detection"
 )
@@ -16,7 +17,13 @@ var toolPatterns []struct {
 func init() {
 	for _, name := range detection.SupportedToolsInMentions {
 		escaped := regexp.QuoteMeta(name)
-		pattern := regexp.MustCompile(`(?i)\b` + escaped + `\b`)
+		escaped = strings.ReplaceAll(escaped, " ", `[\s_-]`)
+		escaped = strings.ReplaceAll(escaped, "-", `[\s_-]`)
+		trailingBoundary := `(?:\z|\s|[\.,!?;:)\]"'])`
+		if match, _ := regexp.MatchString(`\W$`, name); match {
+			trailingBoundary = `(?:\b|\z|\s|[\.,!?;:)\]"'])`
+		}
+		pattern := regexp.MustCompile(`(?i)\b` + escaped + trailingBoundary)
 		toolPatterns = append(toolPatterns, struct {
 			name    string
 			pattern *regexp.Regexp
