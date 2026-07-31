@@ -455,3 +455,30 @@ Signed-off-by: some human <test@example.com>
 		})
 	}
 }
+
+func BenchmarkDetect(b *testing.B) {
+	d := &Detector{}
+	tests := []struct {
+		name    string
+		message string
+	}{
+		{
+			name:    "no match",
+			message: "fix: handle an ordinary commit without attribution",
+		},
+		{
+			name:    "Replit match",
+			message: "feat: update handler\n\nReplit-Commit-Author: Agent\nReplit-Commit-Session-Id: 1234a1ab-12ab-1234-abcd-0123456a1234",
+		},
+	}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			input := detection.Input{CommitMessage: tt.message}
+			b.ReportAllocs()
+			for range b.N {
+				d.Detect(input)
+			}
+		})
+	}
+}

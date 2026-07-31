@@ -31,6 +31,8 @@ func extractToolFromText(text string) (string, error) {
 	return cases.Title(language.English, cases.NoLower).String(text), nil
 }
 
+var replitAttributionPattern = regexp.MustCompile(detection.ReplitAttributionRegex)
+
 var commitMessagePatterns = []struct {
 	check func(string) (detection.Confidence, bool)
 	name  string
@@ -60,9 +62,7 @@ var commitMessagePatterns = []struct {
 	},
 	{
 		check: func(msg string) (detection.Confidence, bool) {
-			trailerRegex := regexp.MustCompile(detection.ReplitAttributionRegex)
-
-			matchResult := trailerRegex.FindStringSubmatch(msg)
+			matchResult := replitAttributionPattern.FindStringSubmatch(msg)
 			if len(matchResult) == 0 {
 				// replit not detected
 				return detection.ConfidenceMedium, false
