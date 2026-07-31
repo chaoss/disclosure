@@ -27,6 +27,8 @@ func allDetectors() []detection.Detector {
 
 func initTestRepo(t *testing.T) (string, []string) {
 	t.Helper()
+	const humanEmail = "human@example.com"
+
 	dir := t.TempDir()
 
 	repo, err := git.PlainInit(dir, false)
@@ -41,11 +43,12 @@ func initTestRepo(t *testing.T) (string, []string) {
 
 	commits := []struct {
 		msg            string
+		authorEmail    string
 		committerEmail string
 	}{
-		{"initial commit", "human@example.com"},
-		{"fix: update handler\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>", "human@example.com"},
-		{"aider: refactor auth module", "human@example.com"},
+		{"initial commit", humanEmail, humanEmail},
+		{"fix: update handler\n\nCo-Authored-By: Claude Opus 4 <noreply@anthropic.com>", humanEmail, humanEmail},
+		{"aider: refactor auth module", humanEmail, humanEmail},
 		{`
 this is a commit message
 
@@ -57,7 +60,13 @@ Assisted-by: Kimi K2.6 (unit tests, integration tests)
 Assisted-by: ChatGPT (documentation review)
 Assisted-by: Gemini (documentation)
 `,
-			"human@example.com",
+			humanEmail,
+			humanEmail,
+		},
+		{
+			"agent-authored change",
+			"198982749+copilot@users.noreply.github.com",
+			humanEmail,
 		},
 	}
 
@@ -73,7 +82,7 @@ Assisted-by: Gemini (documentation)
 		hash, err := wt.Commit(c.msg, &git.CommitOptions{
 			Author: &object.Signature{
 				Name:  "Test",
-				Email: c.committerEmail,
+				Email: c.authorEmail,
 				When:  time.Now().Add(time.Duration(i) * time.Second),
 			},
 			Committer: &object.Signature{
@@ -143,8 +152,28 @@ func TestScanCommitRangeAll(t *testing.T) {
 		t.Fatalf("ScanCommitRange: %v", err)
 	}
 
-	if report.Summary.TotalCommits != 4 {
-		t.Errorf("total commits = %d, want 4", report.Summary.TotalCommits)
+	if report.Summary.TotalCommits != 5 {
+		t.Errorf("total commits = %d, want 5", report.Summary.TotalCommits)
+	}
+}
+
+func TestScanCommitDetectsAuthorIdentity(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	result, err := ScanCommit(dir, hashes[4], []detection.Detector{&committer.Detector{}})
+	if err != nil {
+		t.Fatalf("ScanCommit: %v", err)
+	}
+	if len(result.Findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(result.Findings))
+	}
+
+	finding := result.Findings[0]
+	if finding.Tool != "GitHub Copilot (agent)" {
+		t.Errorf("tool = %q, want %q", finding.Tool, "GitHub Copilot (agent)")
+	}
+	if finding.Detail != "author email 198982749+copilot@users.noreply.github.com matches known AI bot" {
+		t.Errorf("detail = %q, want author identity detail", finding.Detail)
 	}
 }
 

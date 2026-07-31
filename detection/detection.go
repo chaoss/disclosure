@@ -64,11 +64,16 @@ type Detector interface {
 // it cares about and ignores the rest.
 type Input struct {
 	CommitHash    string
-	CommitEmail   string
+	AuthorEmail   string
+	CommitEmail   string // CommitEmail is the committer email.
 	CommitMessage string
 	Notes         string // Content from refs/notes/ai, if any
 	Text          string // For text-only scans (PR body, comments)
 	RepoPath      string
+}
+
+func (input *Input) GetAuthorEmail() (string, error) {
+	return getCommitField(input.AuthorEmail, fieldAuthorEmail)
 }
 
 func (input *Input) GetCommitEmail() (string, error) {

@@ -27,6 +27,7 @@ type agentID struct {
 }
 
 var (
+	fieldAuthorEmail   = "author_email"
 	fieldCommitEmail   = "commit_email"
 	fieldCommitMessage = "commit_message"
 )
@@ -39,7 +40,7 @@ func getCommitField(value string, field string) (string, error) {
 	}
 
 	switch field {
-	case fieldCommitEmail:
+	case fieldAuthorEmail, fieldCommitEmail:
 		return strings.ToLower(value), nil
 
 	case fieldCommitMessage:
