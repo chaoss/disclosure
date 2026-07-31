@@ -86,6 +86,9 @@ var EntireIOTrailers = []string{
 // ReplitAttributionRegex Regex to detect use of Replit Agent or Assistant
 var ReplitAttributionRegex = `(?m)^Replit-Commit-Author:\s*(Agent|Assistant)(?:\r?\nReplit-Commit-Session-Id:\s*([a-fA-F0-9-]+))?(?:\r?\n|$)`
 
+// ReplitAttributionPattern compiled pattern for Replit Agent or Assistant attribution
+var ReplitAttributionPattern = regexp.MustCompile(ReplitAttributionRegex)
+
 // GitNotesAuthorshipPrefix Authorship prefix to check as a precondition in git notes
 var GitNotesAuthorshipPrefix = "authorship/"
 

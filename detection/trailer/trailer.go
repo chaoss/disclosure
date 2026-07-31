@@ -2,7 +2,6 @@ package trailer
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -60,9 +59,7 @@ var commitMessagePatterns = []struct {
 	},
 	{
 		check: func(msg string) (detection.Confidence, bool) {
-			trailerRegex := regexp.MustCompile(detection.ReplitAttributionRegex)
-
-			matchResult := trailerRegex.FindStringSubmatch(msg)
+			matchResult := detection.ReplitAttributionPattern.FindStringSubmatch(msg)
 			if len(matchResult) == 0 {
 				// replit not detected
 				return detection.ConfidenceMedium, false
