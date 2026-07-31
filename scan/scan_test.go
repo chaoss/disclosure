@@ -64,7 +64,7 @@ Assisted-by: Gemini (documentation)
 			humanEmail,
 		},
 		{
-			"agent-authored change",
+			"agent-authored change\n\nAssisted-By: Kimi K2.6",
 			"198982749+copilot@users.noreply.github.com",
 			humanEmail,
 		},
@@ -157,23 +157,32 @@ func TestScanCommitRangeAll(t *testing.T) {
 	}
 }
 
-func TestScanCommitDetectsAuthorIdentity(t *testing.T) {
+func TestScanCommitDetectsAcrossDetectors(t *testing.T) {
 	dir, hashes := initTestRepo(t)
 
-	result, err := ScanCommit(dir, hashes[4], []detection.Detector{&committer.Detector{}})
+	result, err := ScanCommit(dir, hashes[4], allDetectors())
 	if err != nil {
 		t.Fatalf("ScanCommit: %v", err)
 	}
-	if len(result.Findings) != 1 {
-		t.Fatalf("got %d findings, want 1", len(result.Findings))
+
+	wantToolsByDetector := map[string]string{
+		(&committer.Detector{}).Name(): "GitHub Copilot (agent)",
+		(&trailer.Detector{}).Name():   "Kimi K2.6",
+	}
+	if len(result.Findings) != len(wantToolsByDetector) {
+		t.Fatalf("got %d findings, want %d", len(result.Findings), len(wantToolsByDetector))
 	}
 
-	finding := result.Findings[0]
-	if finding.Tool != "GitHub Copilot (agent)" {
-		t.Errorf("tool = %q, want %q", finding.Tool, "GitHub Copilot (agent)")
-	}
-	if finding.Detail != "author email 198982749+copilot@users.noreply.github.com matches known AI bot" {
-		t.Errorf("detail = %q, want author identity detail", finding.Detail)
+	for _, finding := range result.Findings {
+		wantTool, ok := wantToolsByDetector[finding.Detector]
+		if !ok {
+			t.Errorf("unexpected detector %q", finding.Detector)
+			continue
+		}
+		if finding.Tool != wantTool {
+			t.Errorf("%s tool = %q, want %q", finding.Detector, finding.Tool, wantTool)
+		}
+		delete(wantToolsByDetector, finding.Detector)
 	}
 }
 
