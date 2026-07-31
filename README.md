@@ -154,7 +154,7 @@ Pass it alongside the built-in detectors and the scan functions will run it the 
 go build -o disclosure .
 ```
 
-Requires Go 1.24+.
+Requires Go 1.25+.
 
 ## Running tests
 
