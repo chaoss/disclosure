@@ -22,7 +22,12 @@ func extractToolFromText(text string) (string, error) {
 	// trimming any values in brackets e.g. Claude (Anthropic)
 	text, _, _ = strings.Cut(text, "(")
 
-	text = strings.TrimSpace(text)
+	text = strings.Join(strings.Fields(text), " ")
+	text = strings.TrimSpace(strings.TrimRight(text, ".,;:!?"))
+	if len(text) >= 2 && strings.HasPrefix(text, "[") && strings.HasSuffix(text, "]") {
+		text = strings.TrimSpace(text[1 : len(text)-1])
+		text = strings.TrimSpace(strings.TrimRight(text, ".,;:!?"))
+	}
 	if text == "" {
 		return "", fmt.Errorf("no contents found in text")
 	}
@@ -186,7 +191,11 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 		}
 
 		matchedTool, err := extractToolFromText(match[1])
-		if err != nil || seen[matchedTool] {
+		if err != nil {
+			continue
+		}
+		matchedToolKey := cases.Fold().String(matchedTool)
+		if seen[matchedToolKey] {
 			continue
 		}
 
@@ -196,7 +205,7 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 			Confidence: detection.ConfidenceHigh,
 			Detail:     fmt.Sprintf("Assisted-By trailer with tool %s", matchedTool),
 		})
-		seen[matchedTool] = true
+		seen[matchedToolKey] = true
 	}
 	return findings
 }
