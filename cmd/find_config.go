@@ -22,16 +22,20 @@ func findConfigCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 
 			config, err := workflow.DetectConfigs(repoPath)
 			if err != nil {
-				fmt.Fprintf(stderr, "error reading workflows: %v\n", err)
 				*exitCode = ExitError
+				if _, writeErr := fmt.Fprintf(stderr, "error reading workflows: %v\n", err); writeErr != nil {
+					return writeErr
+				}
 				return err
 			}
 
 			enc := json.NewEncoder(stdout)
 			enc.SetIndent("", "  ")
 			if err := enc.Encode(config); err != nil {
-				fmt.Fprintf(stderr, "error formatting json: %v\n", err)
 				*exitCode = ExitError
+				if _, writeErr := fmt.Fprintf(stderr, "error formatting json: %v\n", err); writeErr != nil {
+					return writeErr
+				}
 				return err
 			}
 
