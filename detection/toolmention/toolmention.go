@@ -15,10 +15,11 @@ var toolPatterns []struct {
 }
 
 func init() {
+	replaceChars := `[\s_-]`
 	for _, name := range detection.SupportedToolsInMentions {
 		escaped := regexp.QuoteMeta(name)
-		escaped = strings.ReplaceAll(escaped, " ", `[\s_-]`)
-		escaped = strings.ReplaceAll(escaped, "-", `[\s_-]`)
+		escaped = strings.ReplaceAll(escaped, "-", replaceChars)
+		escaped = strings.ReplaceAll(escaped, " ", replaceChars)
 		trailingBoundary := `(?:\z|\s|[\.,!?;:)\]"'])`
 		if match, _ := regexp.MatchString(`\W$`, name); match {
 			trailingBoundary = `(?:\b|\z|\s|[\.,!?;:)\]"'])`
