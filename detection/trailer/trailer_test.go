@@ -234,6 +234,36 @@ Signed-off-by: some human <test@example.com>
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
+			name:           "assistedby: Equivalent tools are deduplicated across multiple trailers",
+			message:        "this is a commit message with\nAssisted-By: Claude Code\nAssisted-By: CLAUDE CODE\nAssisted-By: [Claude   Code].\nAssisted-By: GitHub Copilot",
+			wantTools:      []string{"Claude Code", "GitHub Copilot"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh, detection.ConfidenceHigh},
+		},
+		{
+			name:           "assistedby: Tool with enclosing square brackets",
+			message:        "this is a commit message with\nAssisted-By: [Claude Code]",
+			wantTools:      []string{"Claude Code"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "assistedby: Tool with extra whitespace and terminal punctuation",
+			message:        "this is a commit message with\nAssisted-By: Claude   Code.",
+			wantTools:      []string{"Claude Code"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "assistedby: Internal model punctuation is preserved",
+			message:        "this is a commit message with\nAssisted-By: GPT-5.5",
+			wantTools:      []string{"GPT-5.5"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "assistedby: Internal tool punctuation is preserved",
+			message:        "this is a commit message with\nAssisted-By: Continue.dev",
+			wantTools:      []string{"Continue.dev"},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
 			name:           "assistedby: Assisted-By trailer in commit message in lower case",
 			message:        "this is a commit message with\nassisted-by: Claude Code",
 			wantTools:      []string{"Claude Code"},
