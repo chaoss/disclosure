@@ -206,10 +206,15 @@ func TestRunScanInvalidRepo(t *testing.T) {
 func TestRunTextAmbiguousModelProse(t *testing.T) {
 	inputPath := filepath.Join(t.TempDir(), "comment.txt")
 	text := strings.Join([]string{
-		"Press Command R to reload the page.",
+		"Press Command A to select all text.",
 		"The R1 resistor value changed during testing.",
 		"The sonar data was noisy in shallow water.",
 		"The UI spotlight highlighted the primary button.",
+		"A body builder updated the training plan.",
+		"The weaver repaired the fabric.",
+		"The bodybuilder updated the training plan.",
+		"The o1 visa, o3 zone, and Saba reference were unrelated.",
+		"The report included uncensored logs.",
 	}, "\n")
 	if err := os.WriteFile(inputPath, []byte(text), 0644); err != nil {
 		t.Fatal(err)
@@ -222,6 +227,36 @@ func TestRunTextAmbiguousModelProse(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "No AI involvement detected") {
 		t.Errorf("expected no-detection output, got: %s", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"text", "--input=" + inputPath, "--include-model-catalog"}, &stdout, &stderr)
+	if code != ExitNoAI {
+		t.Errorf("exit code with model catalog = %d, want %d (stderr: %s, stdout: %s)", code, ExitNoAI, stderr.String(), stdout.String())
+	}
+}
+
+func TestRunTextGeneratedModelCatalogOptIn(t *testing.T) {
+	inputPath := filepath.Join(t.TempDir(), "comment.txt")
+	if err := os.WriteFile(inputPath, []byte("I used Aion-RP 1.0 for a comparison."), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"text", "--input=" + inputPath}, &stdout, &stderr)
+	if code != ExitNoAI {
+		t.Errorf("exit code = %d, want %d (stderr: %s, stdout: %s)", code, ExitNoAI, stderr.String(), stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	code = Run([]string{"text", "--input=" + inputPath, "--include-model-catalog"}, &stdout, &stderr)
+	if code != ExitAI {
+		t.Errorf("exit code with model catalog = %d, want %d (stderr: %s, stdout: %s)", code, ExitAI, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Aion-RP 1.0") {
+		t.Errorf("expected generated model in output, got: %s", stdout.String())
 	}
 }
 

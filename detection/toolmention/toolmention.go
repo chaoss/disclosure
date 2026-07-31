@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -17,41 +18,80 @@ type toolPattern struct {
 	pattern *regexp.Regexp
 }
 
-var toolPatterns []toolPattern
-
-func init() {
-	const separator = `[\s_-]+`
-	names := append([]string(nil), detection.SupportedToolsInMentions...)
-	for _, name := range names {
-		parts := strings.FieldsFunc(name, func(r rune) bool {
-			return r == ' ' || r == '-'
-		})
-		for i := range parts {
-			parts[i] = regexp.QuoteMeta(parts[i])
-		}
-		pattern := `(?i)\b` + strings.Join(parts, separator)
-		last, _ := utf8.DecodeLastRuneInString(name)
-		if unicode.IsLetter(last) || unicode.IsDigit(last) || last == '_' {
-			pattern += `\b`
-		} else {
-			pattern += `(?:$|[^A-Za-z0-9_])`
-		}
-		toolPatterns = append(toolPatterns, toolPattern{
-			name:    name,
-			pattern: regexp.MustCompile(pattern),
-		})
-	}
-}
-
-type Detector struct{}
-
-func (d *Detector) Name() string { return "toolmention" }
-
 type toolMatch struct {
+	name  string
 	start int
 	end   int
-	name  string
 }
+
+var baseToolPatterns = compileToolPatterns(detection.SupportedToolMentions(false))
+
+var generatedToolPatterns struct {
+	once     sync.Once
+	patterns []toolPattern
+}
+
+func compileToolPatterns(names []string) []toolPattern {
+	sort.SliceStable(names, func(i, j int) bool {
+		if len(names[i]) != len(names[j]) {
+			return len(names[i]) > len(names[j])
+		}
+		return strings.ToLower(names[i]) < strings.ToLower(names[j])
+	})
+
+	patterns := make([]toolPattern, 0, len(names))
+	for _, name := range names {
+		patterns = append(patterns, toolPattern{
+			name:    name,
+			pattern: regexp.MustCompile(toolMentionPattern(name)),
+		})
+	}
+	return patterns
+}
+
+func toolMentionPattern(name string) string {
+	const separator = `[\s_-]+`
+
+	parts := strings.FieldsFunc(name, func(r rune) bool {
+		return r == ' ' || r == '-'
+	})
+	for i := range parts {
+		parts[i] = regexp.QuoteMeta(parts[i])
+	}
+
+	pattern := `(?i)\b` + strings.Join(parts, separator)
+	last, _ := utf8.DecodeLastRuneInString(name)
+	if unicode.IsLetter(last) || unicode.IsDigit(last) || last == '_' {
+		return pattern + `\b`
+	}
+	return pattern + `(?:$|[^A-Za-z0-9_])`
+}
+
+func patterns(includeModelCatalog bool) []toolPattern {
+	if !includeModelCatalog {
+		return baseToolPatterns
+	}
+
+	generatedToolPatterns.once.Do(func() {
+		generatedToolPatterns.patterns = compileToolPatterns(detection.SupportedToolMentions(true))
+	})
+	return generatedToolPatterns.patterns
+}
+
+func overlaps(candidate toolMatch, accepted []toolMatch) bool {
+	for _, match := range accepted {
+		if candidate.start < match.end && match.start < candidate.end {
+			return true
+		}
+	}
+	return false
+}
+
+type Detector struct {
+	IncludeModelCatalog bool
+}
+
+func (d *Detector) Name() string { return "toolmention" }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	text, err := input.GetTextWithCommitMessage()
@@ -59,43 +99,40 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		return []detection.Finding{}
 	}
 
-	matches := make([]toolMatch, 0, len(toolPatterns))
-	for _, tp := range toolPatterns {
+	var candidates []toolMatch
+	for _, tp := range patterns(d.IncludeModelCatalog) {
 		for _, loc := range tp.pattern.FindAllStringIndex(text, -1) {
-			matches = append(matches, toolMatch{
-				start: loc[0],
-				end:   loc[1],
-				name:  tp.name,
-			})
+			candidates = append(candidates, toolMatch{name: tp.name, start: loc[0], end: loc[1]})
 		}
 	}
 
-	// Give priority to longer matches when there's an overlap.
-	// e.g. Claude Code would be preferred over Claude
-	sort.SliceStable(matches, func(i, j int) bool {
-		if matches[i].start != matches[j].start {
-			return matches[i].start < matches[j].start
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].end-candidates[i].start != candidates[j].end-candidates[j].start {
+			return candidates[i].end-candidates[i].start > candidates[j].end-candidates[j].start
 		}
-		return matches[i].end-matches[i].start > matches[j].end-matches[j].start
+		if candidates[i].start != candidates[j].start {
+			return candidates[i].start < candidates[j].start
+		}
+		return strings.ToLower(candidates[i].name) < strings.ToLower(candidates[j].name)
 	})
 
-	toolMatches := make([]toolMatch, 0, len(matches))
-	seen := make(map[string]struct{}, len(toolPatterns))
-	lastEnd := -1
-	for _, match := range matches {
-		if match.start < lastEnd {
+	var accepted []toolMatch
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		seenKey := strings.ToLower(candidate.name)
+		if seen[seenKey] || overlaps(candidate, accepted) {
 			continue
 		}
-		if _, ok := seen[match.name]; ok {
-			continue
-		}
-		toolMatches = append(toolMatches, match)
-		seen[match.name] = struct{}{}
-		lastEnd = match.end
+		accepted = append(accepted, candidate)
+		seen[seenKey] = true
 	}
 
-	findings := make([]detection.Finding, 0, len(toolMatches))
-	for _, match := range toolMatches {
+	sort.SliceStable(accepted, func(i, j int) bool {
+		return accepted[i].start < accepted[j].start
+	})
+
+	findings := make([]detection.Finding, 0, len(accepted))
+	for _, match := range accepted {
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       match.name,
@@ -103,5 +140,6 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 			Detail:     "text mentions " + match.name,
 		})
 	}
+
 	return findings
 }
