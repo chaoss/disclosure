@@ -24,19 +24,14 @@ type Detector struct{}
 
 func (d *Detector) Name() string { return "committer" }
 
-func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	email, err := input.GetCommitEmail()
-	if err != nil {
-		return []detection.Finding{}
-	}
-
+func (d *Detector) detectEmail(email, identityField string) []detection.Finding {
 	// Direct match against known emails
 	if name, ok := detection.KnownAgentCommitters[email]; ok {
 		return []detection.Finding{{
 			Detector:   d.Name(),
 			Tool:       name,
 			Confidence: detection.ConfidenceHigh,
-			Detail:     fmt.Sprintf("committer email %s matches known AI bot", email),
+			Detail:     fmt.Sprintf("%s email %s matches known AI bot", identityField, email),
 		}}
 	}
 
@@ -50,11 +45,23 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 					Detector:   d.Name(),
 					Tool:       name,
 					Confidence: detection.ConfidenceHigh,
-					Detail:     fmt.Sprintf("committer email %s matches known AI bot", email),
+					Detail:     fmt.Sprintf("%s email %s matches known AI bot", identityField, email),
 				}}
 			}
 		}
 	}
 
 	return nil
+}
+
+func (d *Detector) Detect(input detection.Input) []detection.Finding {
+	authorEmail, _ := input.GetAuthorEmail()
+	committerEmail, _ := input.GetCommitEmail()
+
+	if authorEmail != "" && authorEmail == committerEmail {
+		return d.detectEmail(authorEmail, "author and committer")
+	}
+
+	findings := d.detectEmail(authorEmail, "author")
+	return append(findings, d.detectEmail(committerEmail, "committer")...)
 }

@@ -130,3 +130,85 @@ func TestDetectNumericPrefixNoFalsePositive(t *testing.T) {
 		}
 	}
 }
+
+func TestDetectAuthorAndCommitter(t *testing.T) {
+	const (
+		claudeEmail  = "209825114+claude[bot]@users.noreply.github.com"
+		copilotEmail = "198982749+copilot@users.noreply.github.com"
+		humanEmail   = "human@example.com"
+	)
+
+	d := &Detector{}
+	tests := []struct {
+		name        string
+		input       detection.Input
+		wantTools   []string
+		wantDetails []string
+	}{
+		{
+			name: "author only",
+			input: detection.Input{
+				AuthorEmail: copilotEmail,
+				CommitEmail: humanEmail,
+			},
+			wantTools: []string{detection.KnownAgentCommitters[copilotEmail]},
+			wantDetails: []string{
+				"author email " + copilotEmail + " matches known AI bot",
+			},
+		},
+		{
+			name: "committer only",
+			input: detection.Input{
+				AuthorEmail: humanEmail,
+				CommitEmail: claudeEmail,
+			},
+			wantTools: []string{detection.KnownAgentCommitters[claudeEmail]},
+			wantDetails: []string{
+				"committer email " + claudeEmail + " matches known AI bot",
+			},
+		},
+		{
+			name: "different agent identities",
+			input: detection.Input{
+				AuthorEmail: copilotEmail,
+				CommitEmail: claudeEmail,
+			},
+			wantTools: []string{
+				detection.KnownAgentCommitters[copilotEmail],
+				detection.KnownAgentCommitters[claudeEmail],
+			},
+			wantDetails: []string{
+				"author email " + copilotEmail + " matches known AI bot",
+				"committer email " + claudeEmail + " matches known AI bot",
+			},
+		},
+		{
+			name: "same identity in both fields",
+			input: detection.Input{
+				AuthorEmail: copilotEmail,
+				CommitEmail: copilotEmail,
+			},
+			wantTools: []string{detection.KnownAgentCommitters[copilotEmail]},
+			wantDetails: []string{
+				"author and committer email " + copilotEmail + " matches known AI bot",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			findings := d.Detect(tt.input)
+			if len(findings) != len(tt.wantTools) {
+				t.Fatalf("got %d findings, want %d", len(findings), len(tt.wantTools))
+			}
+			for i, finding := range findings {
+				if finding.Tool != tt.wantTools[i] {
+					t.Errorf("finding %d tool = %q, want %q", i, finding.Tool, tt.wantTools[i])
+				}
+				if finding.Detail != tt.wantDetails[i] {
+					t.Errorf("finding %d detail = %q, want %q", i, finding.Detail, tt.wantDetails[i])
+				}
+			}
+		})
+	}
+}

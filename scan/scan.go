@@ -64,6 +64,7 @@ func ScanText(text string, detectors []detection.Detector) []detection.Finding {
 func scanOneCommit(c gitops.Commit, detectors []detection.Detector) CommitResult {
 	input := detection.Input{
 		CommitHash:    c.Hash,
+		AuthorEmail:   c.AuthorEmail,
 		CommitEmail:   c.CommitterEmail,
 		CommitMessage: c.Message,
 		Notes:         c.Notes,
