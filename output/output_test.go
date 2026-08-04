@@ -165,18 +165,14 @@ func TestFormatTextFindingsEmpty(t *testing.T) {
 
 func TestFormatJSONEmptyReport(t *testing.T) {
 	var buf bytes.Buffer
-
 	report := scan.Report{}
-
 	if err := FormatJSON(&buf, report); err != nil {
 		t.Fatalf("FormatJSON: %v", err)
 	}
-
 	var decoded scan.Report
 	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-
 	if decoded.Summary.OverallScore != 0 {
 		t.Fatalf("overall score = %v, want 0", decoded.Summary.OverallScore)
 	}
@@ -197,7 +193,6 @@ func TestFormatJSONWriterError(t *testing.T) {
 
 func TestFormatTextZeroScore(t *testing.T) {
 	var buf bytes.Buffer
-
 	report := scan.Report{
 		Summary: scan.Summary{
 			TotalCommits: 1,
@@ -206,11 +201,9 @@ func TestFormatTextZeroScore(t *testing.T) {
 			ToolCounts:   map[string]int{},
 		},
 	}
-
 	if err := FormatText(&buf, report); err != nil {
 		t.Fatal(err)
 	}
-
 	if strings.Contains(buf.String(), "Overall score") {
 		t.Error("did not expect overall score for zero")
 	}
@@ -218,7 +211,6 @@ func TestFormatTextZeroScore(t *testing.T) {
 
 func TestFormatTextShortHash(t *testing.T) {
 	var buf bytes.Buffer
-
 	report := scan.Report{
 		Commits: []scan.CommitResult{
 			{
@@ -232,13 +224,11 @@ func TestFormatTextShortHash(t *testing.T) {
 			AICommits: 1,
 		},
 	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("panic: %v", r)
 		}
 	}()
-
 	if err := FormatText(&buf, report); err != nil {
 		t.Fatal(err)
 	}
@@ -246,18 +236,15 @@ func TestFormatTextShortHash(t *testing.T) {
 
 func TestFormatTextFindingsIncludesScore(t *testing.T) {
 	var buf bytes.Buffer
-
 	findings := []detection.Finding{
 		{
 			Detector: "test",
 			Score:    100,
 		},
 	}
-
 	if err := FormatTextFindings(&buf, findings); err != nil {
 		t.Fatal(err)
 	}
-
 	if !strings.Contains(buf.String(), "Overall score:") {
 		t.Fatal("missing score")
 	}
@@ -265,11 +252,9 @@ func TestFormatTextFindingsIncludesScore(t *testing.T) {
 
 func TestFormatTextFindingsEmptySlice(t *testing.T) {
 	var buf bytes.Buffer
-
 	if err := FormatTextFindings(&buf, []detection.Finding{}); err != nil {
 		t.Fatal(err)
 	}
-
 	if !strings.Contains(buf.String(), "No AI involvement detected") {
 		t.Fatal("expected no detection message")
 	}
@@ -277,7 +262,6 @@ func TestFormatTextFindingsEmptySlice(t *testing.T) {
 
 func TestFormatJSONFindingsStructure(t *testing.T) {
 	var buf bytes.Buffer
-
 	findings := []detection.Finding{
 		{
 			Detector: "toolmention",
@@ -285,40 +269,27 @@ func TestFormatJSONFindingsStructure(t *testing.T) {
 			Score:    100,
 		},
 	}
-
 	if err := FormatJSONFindings(&buf, findings); err != nil {
 		t.Fatal(err)
 	}
-
 	var decoded struct {
 		Findings []detection.Finding `json:"findings"`
 		Score    float64             `json:"overall_score"`
 	}
-
 	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-
 	if len(decoded.Findings) != 1 {
 		t.Fatalf("findings=%d want 1", len(decoded.Findings))
 	}
-
 	if decoded.Score != 100 {
 		t.Fatalf("score=%v want 100", decoded.Score)
 	}
 }
 
 func TestSortedKeys(t *testing.T) {
-	got := sortedKeys(map[string]int{
-		"c": 1,
-		"h": 1,
-		"a": 1,
-		"o": 1,
-		"s": 1,
-	})
-
+	got := sortedKeys(map[string]int{"c": 1, "h": 1, "a": 1, "o": 1, "s": 1})
 	want := []string{"a", "c", "h", "o", "s"}
-
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %v want %v", got, want)
 	}

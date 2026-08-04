@@ -42,6 +42,39 @@ func allDetectors() []detection.Detector {
 	}
 }
 
+// parseKeyValueFloatList parses strings like "a=1,b=2.5" into a map[string]float64.
+func parseKeyValueFloatList(s string) (map[string]float64, error) {
+	out := map[string]float64{}
+	if strings.TrimSpace(s) == "" {
+		return out, nil
+	}
+	parts := strings.SplitSeq(s, ",")
+	for p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("invalid entry: %q", p)
+		}
+		key := strings.TrimSpace(kv[0])
+		if key == "" {
+			return nil, fmt.Errorf("empty key in entry: %q", p)
+		}
+		valStr := strings.TrimSpace(kv[1])
+		if valStr == "" {
+			return nil, fmt.Errorf("empty value in entry: %q", p)
+		}
+		v, err := strconv.ParseFloat(valStr, 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("invalid numeric value %q in entry %q", valStr, p)
+		}
+		out[key] = v
+	}
+	return out, nil
+}
+
 // Run is the main entry point for the CLI. Returns an exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
 	rootCmd := &cobra.Command{
@@ -139,42 +172,11 @@ Examples:
 
 			// parse confidence-scores override if provided
 			if strings.TrimSpace(confidenceScoresFlag) != "" {
-				flagMap := map[string]float64{}
-				parts := strings.SplitSeq(confidenceScoresFlag, ",")
-				for p := range parts {
-					p = strings.TrimSpace(p)
-					if p == "" {
-						continue
-					}
-					kv := strings.SplitN(p, "=", 2)
-					if len(kv) != 2 {
-						err := fmt.Errorf("invalid confidence-scores entry: %q", p)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					key := strings.TrimSpace(kv[0])
-					if key == "" {
-						err := fmt.Errorf("empty key in confidence-scores entry: %q", p)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					valStr := strings.TrimSpace(kv[1])
-					if valStr == "" {
-						err := fmt.Errorf("empty value in confidence-scores entry: %q", p)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					val, err := strconv.ParseFloat(valStr, 64)
-					if err != nil || math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > 100 {
-						err = fmt.Errorf("invalid value in confidence-scores entry: %q", p)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					flagMap[key] = val
+				flagMap, err := parseKeyValueFloatList(confidenceScoresFlag)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
 				}
 				if err := detection.SetConfidenceScoresFromStrings(flagMap); err != nil {
 					fmt.Fprintln(stderr, err)
@@ -186,30 +188,11 @@ Examples:
 			// parse weights flag
 			scan.Weights = nil
 			if strings.TrimSpace(weightsFlag) != "" {
-				weightMap := map[string]float64{}
-				parts := strings.SplitSeq(weightsFlag, ",")
-				for p := range parts {
-					kv := strings.SplitN(p, "=", 2)
-					if len(kv) != 2 {
-						err := fmt.Errorf("invalid weights entry: %q", p)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					name := strings.TrimSpace(kv[0])
-					var val float64
-					if _, err := fmt.Sscan(strings.TrimSpace(kv[1]), &val); err != nil {
-						fmt.Fprintln(stderr, "invalid number in weights:", kv[1])
-						*exitCode = ExitError
-						return err
-					}
-					if math.IsNaN(val) || math.IsInf(val, 0) {
-						err := fmt.Errorf("invalid weight value: %v", val)
-						fmt.Fprintln(stderr, err)
-						*exitCode = ExitError
-						return err
-					}
-					weightMap[name] = val
+				weightMap, err := parseKeyValueFloatList(weightsFlag)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
 				}
 				scan.Weights = weightMap
 			}

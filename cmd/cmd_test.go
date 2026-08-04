@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -255,62 +256,159 @@ func TestRunScanInvalidFormat(t *testing.T) {
 }
 
 func TestFilterReport(t *testing.T) {
-	report := scan.Report{
-		Commits: []scan.CommitResult{
-			{
-				Hash: "abc123",
-				Findings: []detection.Finding{
-					{Detector: "toolmention", Tool: "Claude", Confidence: 1, Detail: "text"},
-					{Detector: "trailer", Tool: "Claude Code", Confidence: 3, Detail: "trailer"},
+	tests := []struct {
+		name          string
+		report        scan.Report
+		minConf       detection.Confidence
+		wantScore     float64
+		wantAICommits int
+		wantFindings  int
+		wantTool      string // optional
+	}{
+		{
+			name: "keep only high confidence findings",
+			report: scan.Report{
+				Commits: []scan.CommitResult{
+					{
+						Hash: "abc123",
+						Findings: []detection.Finding{
+							{
+								Detector:   "toolmention",
+								Tool:       "Claude",
+								Confidence: detection.ConfidenceLow,
+								Score:      20,
+							},
+							{
+								Detector:   "trailer",
+								Tool:       "Claude Code",
+								Confidence: detection.ConfidenceHigh,
+								Score:      100,
+							},
+						},
+					},
+				},
+				Summary: scan.Summary{
+					TotalCommits: 1,
+					AICommits:    1,
+					ToolCounts:   map[string]int{"Claude": 1, "Claude Code": 1},
+					ByConfidence: map[string]int{"low": 1, "high": 1},
 				},
 			},
+			minConf:       detection.ConfidenceHigh,
+			wantScore:     100,
+			wantAICommits: 1,
+			wantFindings:  1,
+			wantTool:      "Claude Code",
 		},
-		Summary: scan.Summary{
-			TotalCommits: 1,
-			AICommits:    1,
-			ToolCounts:   map[string]int{"Claude": 1, "Claude Code": 1},
-			ByConfidence: map[string]int{"low": 1, "high": 1},
-		},
-	}
-
-	filtered := filterReport(report, 3) // high only
-	if len(filtered.Commits[0].Findings) != 1 {
-		t.Fatalf("expected 1 finding after filter, got %d", len(filtered.Commits[0].Findings))
-	}
-	if filtered.Commits[0].Findings[0].Tool != "Claude Code" {
-		t.Errorf("expected Claude Code, got %s", filtered.Commits[0].Findings[0].Tool)
-	}
-	if filtered.Summary.AICommits != 1 {
-		t.Errorf("ai_commits = %d, want 1", filtered.Summary.AICommits)
-	}
-}
-
-func TestFilterReportAllFiltered(t *testing.T) {
-	report := scan.Report{
-		Commits: []scan.CommitResult{
-			{
-				Hash: "abc123",
-				Findings: []detection.Finding{
+		{
+			name: "all findings filtered out",
+			report: scan.Report{
+				Commits: []scan.CommitResult{
 					{
-						Detector:   "toolmention",
-						Confidence: detection.ConfidenceLow,
+						Hash: "abc123",
+						Findings: []detection.Finding{
+							{
+								Detector:   "toolmention",
+								Confidence: detection.ConfidenceLow,
+								Score:      20,
+							},
+						},
+					},
+				},
+				Summary: scan.Summary{
+					TotalCommits: 1,
+				},
+			},
+			minConf:       detection.ConfidenceHigh,
+			wantScore:     0,
+			wantAICommits: 0,
+			wantFindings:  0,
+		},
+		{
+			name: "empty findings",
+			report: scan.Report{
+				Commits: []scan.CommitResult{
+					{
+						Hash:     "abc123",
+						Findings: nil,
 					},
 				},
 			},
+			minConf:       detection.ConfidenceMedium,
+			wantScore:     0,
+			wantAICommits: 0,
+			wantFindings:  0,
 		},
-		Summary: scan.Summary{
-			TotalCommits: 1,
+		{
+			name:          "no commits",
+			report:        scan.Report{},
+			minConf:       detection.ConfidenceHigh,
+			wantScore:     0,
+			wantAICommits: 0,
+			wantFindings:  0,
+		},
+		{
+			name: "low confidence threshold returns original report",
+			report: scan.Report{
+				Commits: []scan.CommitResult{
+					{
+						Hash: "abc123",
+						Findings: []detection.Finding{
+							{
+								Detector:   "toolmention",
+								Confidence: detection.ConfidenceLow,
+								Score:      20,
+							},
+							{
+								Detector:   "trailer",
+								Confidence: detection.ConfidenceHigh,
+								Score:      100,
+							},
+						},
+					},
+				},
+			},
+			minConf:      detection.ConfidenceLow,
+			wantFindings: 2,
 		},
 	}
 
-	filtered := filterReport(report, detection.ConfidenceHigh)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := filterReport(tt.report, tt.minConf)
 
-	if filtered.Summary.AICommits != 0 {
-		t.Fatalf("AICommits=%d, want 0", filtered.Summary.AICommits)
-	}
+			if tt.minConf == detection.ConfidenceLow {
+				if got := len(filtered.Commits[0].Findings); got != tt.wantFindings {
+					t.Fatalf("findings=%d want=%d", got, tt.wantFindings)
+				}
+				return
+			}
 
-	if len(filtered.Commits[0].Findings) != 0 {
-		t.Fatalf("expected no findings")
+			if filtered.Summary.OverallScore != tt.wantScore {
+				t.Errorf("overall score=%v want=%v",
+					filtered.Summary.OverallScore, tt.wantScore)
+			}
+
+			if filtered.Summary.AICommits != tt.wantAICommits {
+				t.Errorf("AICommits=%d want=%d",
+					filtered.Summary.AICommits, tt.wantAICommits)
+			}
+
+			gotFindings := 0
+			for _, c := range filtered.Commits {
+				gotFindings += len(c.Findings)
+			}
+			if gotFindings != tt.wantFindings {
+				t.Errorf("findings=%d want=%d", gotFindings, tt.wantFindings)
+			}
+
+			if tt.wantTool != "" {
+				got := filtered.Commits[0].Findings[0].Tool
+				if got != tt.wantTool {
+					t.Errorf("tool=%q want=%q", got, tt.wantTool)
+				}
+			}
+		})
 	}
 }
 
@@ -428,191 +526,302 @@ func TestRunDocsWriteError(t *testing.T) {
 	}
 }
 
-func TestRunDocsEmptyFormat(t *testing.T) {
+func TestRunDocsEmptyFormatFlag(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-
-	code := Run([]string{
-		"docs",
-		"--format=",
-	}, &stdout, &stderr)
-
+	code := Run([]string{"docs", "--format="}, &stdout, &stderr)
 	if code != ExitError {
 		t.Errorf("exit code=%d want error", code)
 	}
 }
 
-func TestRunScanWithWeightsFlag(t *testing.T) {
-	dir := initTestRepo(t)
-
-	var stdout, stderr bytes.Buffer
-	// Give trailer weight 0 and toolmention weight 1 so only toolmention contributes
-	code := Run([]string{"scan", "--format=json", "--weights=trailer=0.55,toolmention=0.45", dir}, &stdout, &stderr)
-	if code != ExitAI && code != ExitNoAI {
-		t.Fatalf("unexpected exit code: %d (stderr: %s)", code, stderr.String())
-	}
-
-	var report scan.Report
-	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-		t.Fatalf("unmarshal: %v (output: %s)", err, stdout.String())
-	}
-
-	var all []detection.Finding
-	for _, cr := range report.Commits {
-		all = append(all, cr.Findings...)
-	}
-
-	weights := map[string]float64{"trailer": 0.55, "toolmention": 0.45}
-	expectedOverall, _ := detection.ConsolidateFindingScore(all, weights)
-	if report.Summary.OverallScore != expectedOverall {
-		t.Fatalf("overall score = %v, want %v (weights applied)", report.Summary.OverallScore, expectedOverall)
-	}
-}
-
-func TestRunScanWithConfidenceScoresFlag(t *testing.T) {
-	dir := initTestRepo(t)
-
-	var stdout, stderr bytes.Buffer
-
-	// override confidence scores: low=10, medium=50, high=90
-	code := Run([]string{"scan", "--format=json", "--confidence-scores=low=10,medium=50,high=90", dir}, &stdout, &stderr)
-	if code != ExitAI && code != ExitNoAI {
-		t.Fatalf("unexpected exit code: %d (stderr: %s)", code, stderr.String())
-	}
-
-	var report scan.Report
-	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-		t.Fatalf("unmarshal: %v (output: %s)", err, stdout.String())
-	}
-
-	var all []detection.Finding
-	for _, cr := range report.Commits {
-		all = append(all, cr.Findings...)
-	}
-
-	expectedOverall, _ := detection.ConsolidateFindingScore(all, nil)
-	if report.Summary.OverallScore != expectedOverall {
-		t.Fatalf("overall score = %v, want %v (conf scores applied)", report.Summary.OverallScore, expectedOverall)
-	}
-}
-
-func TestRunScanInvalidMinConfidence(t *testing.T) {
-	dir := initTestRepo(t)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{
-		"scan",
-		"--min-confidence=invalid",
-		dir,
-	}, &stdout, &stderr)
-
-	if code != ExitError {
-		t.Errorf("exit code = %d, want %d", code, ExitError)
-	}
-
-	if !strings.Contains(stderr.String(), "invalid confidence") {
-		t.Errorf("expected confidence error, got: %s", stderr.String())
-	}
-}
-
-func TestRunScanInvalidWeightsFormat(t *testing.T) {
-	dir := initTestRepo(t)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{
-		"scan",
-		"--weights=trailer",
-		dir,
-	}, &stdout, &stderr)
-
-	if code != ExitError {
-		t.Errorf("exit code = %d, want %d", code, ExitError)
-	}
-}
-
-func TestRunScanInvalidConfidenceScoresFormat(t *testing.T) {
-	dir := initTestRepo(t)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{
-		"scan",
-		"--confidence-scores=low",
-		dir,
-	}, &stdout, &stderr)
-
-	if code != ExitError {
-		t.Errorf("exit code = %d, want %d", code, ExitError)
-	}
-}
-
-func TestFilterReportRecalculatesScore(t *testing.T) {
-	report := scan.Report{
-		Commits: []scan.CommitResult{
-			{
-				Hash: "abc123",
-				Findings: []detection.Finding{
-					{
-						Detector:   "toolmention",
-						Confidence: detection.ConfidenceLow,
-						Score:      20,
-					},
-					{
-						Detector:   "trailer",
-						Confidence: detection.ConfidenceHigh,
-						Score:      100,
-					},
-				},
-			},
+func TestParseKeyValueFloatList(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    map[string]float64
+		wantErr bool
+	}{
+		{
+			name:    "Valid input single pair",
+			input:   "low=20",
+			want:    map[string]float64{"low": 20},
+			wantErr: false,
+		},
+		{
+			name:    "Valid input multiple pairs with floats",
+			input:   "trailer=0.8,toolmention=0.2",
+			want:    map[string]float64{"trailer": 0.8, "toolmention": 0.2},
+			wantErr: false,
+		},
+		{
+			name:    "Valid input with spacing padding",
+			input:   " low = 20 , medium = 60.5 ",
+			want:    map[string]float64{"low": 20, "medium": 60.5},
+			wantErr: false,
+		},
+		{
+			name:    "Empty string yields empty map",
+			input:   "   ",
+			want:    map[string]float64{},
+			wantErr: false,
+		},
+		{
+			name:    "Error on malformed key value syntax",
+			input:   "low:20",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "Error on empty keys",
+			input:   "=20,medium=60",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "Error on empty values",
+			input:   "low=,medium=60",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "Error on invalid float strings",
+			input:   "low=twenty",
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:    "Error on invalid numerical states (NaN)",
+			input:   "low=NaN",
+			want:    nil,
+			wantErr: true,
 		},
 	}
 
-	filtered := filterReport(report, detection.ConfidenceHigh)
-
-	if filtered.Commits[0].Score != 100 {
-		t.Errorf(
-			"score=%v want 100",
-			filtered.Commits[0].Score,
-		)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseKeyValueFloatList(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseKeyValueFloatList() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseKeyValueFloatList() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
-func TestRunScanRejectsNaNWeights(t *testing.T) {
+func TestRunScanFlags(t *testing.T) {
 	dir := initTestRepo(t)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{
-		"scan",
-		"--weights=trailer=NaN",
-		dir,
-	}, &stdout, &stderr)
+	tests := []struct {
+		name        string
+		args        []string
+		wantCode    int
+		wantErrText string
+	}{
+		{
+			name:        "invalid min confidence",
+			args:        []string{"scan", "--min-confidence=invalid", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid confidence",
+		},
+		{
+			name:     "invalid weights format",
+			args:     []string{"scan", "--weights=trailer", dir},
+			wantCode: ExitError,
+		},
+		{
+			name:     "invalid confidence scores format",
+			args:     []string{"scan", "--confidence-scores=low", dir},
+			wantCode: ExitError,
+		},
+		{
+			name:     "reject NaN weight",
+			args:     []string{"scan", "--weights=trailer=NaN", dir},
+			wantCode: ExitError,
+		},
+		{
+			name:     "reject NaN confidence score",
+			args:     []string{"scan", "--confidence-scores=high=NaN", dir},
+			wantCode: ExitError,
+		},
+		{
+			name: "both valid flags",
+			args: []string{
+				"scan",
+				"--weights=trailer=0.5,toolmention=0.5",
+				"--confidence-scores=low=15,medium=55,high=95",
+				dir,
+			},
+			wantCode: ExitAI, // or ExitNoAI
+		},
+	}
 
-	if code != ExitError {
-		t.Errorf("expected error for NaN weight")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			code := Run(tt.args, &stdout, &stderr)
+
+			if tt.name == "both valid flags" {
+				if code != ExitAI && code != ExitNoAI {
+					t.Fatalf("unexpected exit code %d (stderr=%s)", code, stderr.String())
+				}
+				return
+			}
+
+			if code != tt.wantCode {
+				t.Fatalf("exit code=%d want=%d", code, tt.wantCode)
+			}
+
+			if tt.wantErrText != "" &&
+				!strings.Contains(stderr.String(), tt.wantErrText) {
+				t.Fatalf("stderr=%q does not contain %q", stderr.String(), tt.wantErrText)
+			}
+		})
 	}
 }
 
-func TestRunScanRejectsNaNConfidenceScore(t *testing.T) {
+func TestRunScanScoreFlags(t *testing.T) {
 	dir := initTestRepo(t)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{
-		"scan",
-		"--confidence-scores=high=NaN",
-		dir,
-	}, &stdout, &stderr)
+	tests := []struct {
+		name            string
+		args            []string
+		expectedWeights map[string]float64
+	}{
+		{
+			name: "weights",
+			args: []string{
+				"scan",
+				"--format=json",
+				"--weights=trailer=0.55,toolmention=0.45",
+				dir,
+			},
+			expectedWeights: map[string]float64{
+				"trailer":     0.55,
+				"toolmention": 0.45,
+			},
+		},
+		{
+			name: "confidence scores",
+			args: []string{
+				"scan",
+				"--format=json",
+				"--confidence-scores=low=10,medium=50,high=90",
+				dir,
+			},
+			expectedWeights: nil,
+		},
+	}
 
-	if code != ExitError {
-		t.Errorf("expected error for NaN confidence score")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			code := Run(tt.args, &stdout, &stderr)
+			if code != ExitAI && code != ExitNoAI {
+				t.Fatalf("unexpected exit code %d: %s", code, stderr.String())
+			}
+
+			var report scan.Report
+			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+
+			var findings []detection.Finding
+			for _, c := range report.Commits {
+				findings = append(findings, c.Findings...)
+			}
+
+			expected, _ := detection.ConsolidateFindingScore(findings, tt.expectedWeights)
+
+			if report.Summary.OverallScore != expected {
+				t.Fatalf("overall=%v want=%v",
+					report.Summary.OverallScore,
+					expected)
+			}
+		})
 	}
 }
 
-func TestRunScanInvalidWeightsMissingValue(t *testing.T) {
-	dir := initTestRepo(t)
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"scan", "--weights=trailer=,toolmention=0.5", dir}, &stdout, &stderr)
-	if code != ExitError {
-		t.Fatalf("expected ExitError for missing weight value, got %d", code)
+func TestScanCommandInvalidFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "weights missing equals",
+			args: []string{"--weights", "string_without_equals"},
+		},
+		{
+			name: "weights empty key",
+			args: []string{"--weights", "=0.5"},
+		},
+		{
+			name: "weights empty value",
+			args: []string{"--weights", "trailer="},
+		},
+		{
+			name: "weights invalid number",
+			args: []string{"--weights", "trailer=abc"},
+		},
+		{
+			name: "weights NaN",
+			args: []string{"--weights", "trailer=NaN"},
+		},
+		{
+			name: "weights Inf",
+			args: []string{"--weights", "trailer=Inf"},
+		},
+		{
+			name: "weights -Inf",
+			args: []string{"--weights", "trailer=-Inf"},
+		},
+		{
+			name: "confidence missing equals",
+			args: []string{"--confidence-scores", "low"},
+		},
+		{
+			name: "confidence empty key",
+			args: []string{"--confidence-scores", "=10"},
+		},
+		{
+			name: "confidence empty value",
+			args: []string{"--confidence-scores", "low="},
+		},
+		{
+			name: "confidence invalid number",
+			args: []string{"--confidence-scores", "low=abc"},
+		},
+		{
+			name: "confidence NaN",
+			args: []string{"--confidence-scores", "high=NaN"},
+		},
+		{
+			name: "confidence Inf",
+			args: []string{"--confidence-scores", "high=Inf"},
+		},
+		{
+			name: "confidence -Inf",
+			args: []string{"--confidence-scores", "high=-Inf"},
+		},
 	}
-	if !strings.Contains(stderr.String(), "invalid number in weights") {
-		t.Fatalf("expected numeric parse error, got stderr: %s", stderr.String())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			exitCode := ExitNoAI
+
+			cmd := scanCommand(&stdout, &stderr, &exitCode)
+			cmd.SetArgs(tt.args)
+
+			_ = cmd.Execute()
+
+			if exitCode != ExitError {
+				t.Fatalf("expected ExitError, got %d (stderr=%q)", exitCode, stderr.String())
+			}
+		})
 	}
 }
