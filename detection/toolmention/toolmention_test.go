@@ -22,12 +22,17 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "Claude Code mention in text",
 			input:     detection.Input{Text: "Generated with Claude Code"},
-			wantTools: []string{"Claude Code", "Claude"},
+			wantTools: []string{"Claude Code"},
+		},
+		{
+			name:      "GitHub Copilot mention",
+			input:     detection.Input{Text: "GitHub Copilot helped with this"},
+			wantTools: []string{"GitHub Copilot"},
 		},
 		{
 			name:      "Copilot mention",
-			input:     detection.Input{Text: "GitHub Copilot helped with this"},
-			wantTools: []string{"GitHub Copilot", "Copilot"},
+			input:     detection.Input{Text: "Copilot was used to generate docs"},
+			wantTools: []string{"Copilot"},
 		},
 		{
 			name:      "multiple tools mentioned",
@@ -42,7 +47,7 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "commit message scanned too",
 			input:     detection.Input{CommitMessage: "feat: add feature\n\nGenerated with Claude Code"},
-			wantTools: []string{"Claude Code", "Claude"},
+			wantTools: []string{"Claude Code"},
 		},
 		{
 			name:      "text and commit message combined",
@@ -110,8 +115,8 @@ func TestDetect(t *testing.T) {
 			wantTools: []string{"Kimi"},
 		},
 		{
-			name:      "DeepSeek, Qwen, and Llama open weights",
-			input:     detection.Input{Text: "Tested using DeepSeek, Qwen, and Llama locally"},
+			name:      "DeepSeek, Qwen and Llama open weights",
+			input:     detection.Input{Text: "Tested using DeepSeek, Qwen, Llama locally"},
 			wantTools: []string{"DeepSeek", "Qwen", "Llama"},
 		},
 		{
@@ -122,7 +127,7 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "Z.ai ecosystem tools",
 			input:     detection.Input{Text: "Used GLM inside ZCode via Z.ai orchestrator"},
-			wantTools: []string{"Z.ai", "GLM", "ZCode"},
+			wantTools: []string{"GLM", "ZCode", "Z.ai"},
 		},
 		{
 			name:      "Vibe coding platforms bolt and lovable",
@@ -142,7 +147,7 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "Mastra and CodeGPT automation",
 			input:     detection.Input{Text: "Automated PR reviews handled by Mastra with CodeGPT engine"},
-			wantTools: []string{"CodeGPT", "Mastra"},
+			wantTools: []string{"Mastra", "CodeGPT"},
 		},
 		{
 			name:      "Vercel v0 explicit tool match",
@@ -202,7 +207,42 @@ func TestDetect(t *testing.T) {
 		{
 			name:      "Command R and R+ used and disclosed together",
 			input:     detection.Input{Text: "Using Command R for bug fixes and Command R+ for documentation"},
-			wantTools: []string{"Command-R+", "Command-R"},
+			wantTools: []string{"Command-R", "Command-R+"},
+		},
+		{
+			name:      "Command-R+ in backticks",
+			input:     detection.Input{Text: "Running `Command-R+` via the Cohere API"},
+			wantTools: []string{"Command-R+"},
+		},
+		{
+			name:      "tool name in markdown backticks",
+			input:     detection.Input{Text: "I used `Claude` to draft the summary"},
+			wantTools: []string{"Claude"},
+		},
+		{
+			name:      "slash-separated tool names both detected",
+			input:     detection.Input{Text: "Compared Claude/ChatGPT for this task"},
+			wantTools: []string{"Claude", "ChatGPT"},
+		},
+		{
+			name:      "Cohere ordinary word does not match as tool",
+			input:     detection.Input{Text: "The changes cohere with existing conventions"},
+			wantTools: nil,
+		},
+		{
+			name:      "Gemini ordinary reference does not match as tool",
+			input:     detection.Input{Text: "The Gemini spacecraft mission was discussed in class"},
+			wantTools: nil,
+		},
+		{
+			name:      "Llama ordinary animal reference will also match (false positive)",
+			input:     detection.Input{Text: "The llama walked across the field"},
+			wantTools: []string{"Llama"},
+		},
+		{
+			name:      "Gemini inside a longer word does not match",
+			input:     detection.Input{Text: "The geminized configuration was rejected"},
+			wantTools: nil,
 		},
 	}
 

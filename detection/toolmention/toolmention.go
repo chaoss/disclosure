@@ -1,34 +1,46 @@
 package toolmention
 
 import (
-	"fmt"
 	"regexp"
+	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/chaoss/disclosure/detection"
 )
 
-// toolPatterns maps AI tool names to compiled word-boundary regexes.
-var toolPatterns []struct {
+type toolPattern struct {
 	name    string
 	pattern *regexp.Regexp
 }
 
+var toolPatterns []toolPattern
+
 func init() {
-	replaceChars := `[\s_-]`
-	for _, name := range detection.SupportedToolsInMentions {
-		escaped := regexp.QuoteMeta(name)
-		escaped = strings.ReplaceAll(escaped, "-", replaceChars)
-		escaped = strings.ReplaceAll(escaped, " ", replaceChars)
-		trailingBoundary := `(?:\z|\s|[\.,!?;:)\]"'])`
-		if match, _ := regexp.MatchString(`\W$`, name); match {
-			trailingBoundary = `(?:\b|\z|\s|[\.,!?;:)\]"'])`
+	const separator = `[\s_-]+`
+	names := append([]string(nil), detection.SupportedToolsInMentions...)
+	sort.SliceStable(names, func(i, j int) bool {
+		return len(names[i]) > len(names[j])
+	})
+	for _, name := range names {
+		parts := strings.FieldsFunc(name, func(r rune) bool {
+			return r == ' ' || r == '-'
+		})
+		for i := range parts {
+			parts[i] = regexp.QuoteMeta(parts[i])
 		}
-		pattern := regexp.MustCompile(`(?i)\b` + escaped + trailingBoundary)
-		toolPatterns = append(toolPatterns, struct {
-			name    string
-			pattern *regexp.Regexp
-		}{name: name, pattern: pattern})
+		pattern := `(?i)\b` + strings.Join(parts, separator)
+		last, _ := utf8.DecodeLastRuneInString(name)
+		if unicode.IsLetter(last) || unicode.IsDigit(last) || last == '_' {
+			pattern += `\b`
+		} else {
+			pattern += `(?:$|[^A-Za-z0-9_])`
+		}
+		toolPatterns = append(toolPatterns, toolPattern{
+			name:    name,
+			pattern: regexp.MustCompile(pattern),
+		})
 	}
 }
 
@@ -36,28 +48,61 @@ type Detector struct{}
 
 func (d *Detector) Name() string { return "toolmention" }
 
+type toolMatch struct {
+	start int
+	end   int
+	name  string
+}
+
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	text, err := input.GetTextWithCommitMessage()
 	if err != nil {
 		return []detection.Finding{}
 	}
 
-	var findings []detection.Finding
-	seen := map[string]bool{}
+	matches := make([]toolMatch, 0, len(toolPatterns))
 	for _, tp := range toolPatterns {
-		if seen[tp.name] {
-			continue
-		}
-		if tp.pattern.MatchString(text) {
-			findings = append(findings, detection.Finding{
-				Detector:   d.Name(),
-				Tool:       tp.name,
-				Confidence: detection.ConfidenceLow,
-				Detail:     fmt.Sprintf("text mentions %s", tp.name),
+		for _, loc := range tp.pattern.FindAllStringIndex(text, -1) {
+			matches = append(matches, toolMatch{
+				start: loc[0],
+				end:   loc[1],
+				name:  tp.name,
 			})
-			seen[tp.name] = true
 		}
 	}
 
+	// Give priority to longer matches when there's an overlap.
+	// e.g. Claude Code would be preferred over Claude
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].start != matches[j].start {
+			return matches[i].start < matches[j].start
+		}
+		return matches[i].end-matches[i].start > matches[j].end-matches[j].start
+	})
+
+	toolMatches := make([]toolMatch, 0, len(matches))
+	seen := make(map[string]struct{}, len(toolPatterns))
+	lastEnd := -1
+	for _, match := range matches {
+		if match.start < lastEnd {
+			continue
+		}
+		if _, ok := seen[match.name]; ok {
+			continue
+		}
+		toolMatches = append(toolMatches, match)
+		seen[match.name] = struct{}{}
+		lastEnd = match.end
+	}
+
+	findings := make([]detection.Finding, 0, len(toolMatches))
+	for _, match := range toolMatches {
+		findings = append(findings, detection.Finding{
+			Detector:   d.Name(),
+			Tool:       match.name,
+			Confidence: detection.ConfidenceLow,
+			Detail:     "text mentions " + match.name,
+		})
+	}
 	return findings
 }
