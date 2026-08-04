@@ -12,7 +12,7 @@ If you're experiencing an issue you can search for your problem or question on o
 If you are new to opening issues, we recommend [opensource.guide](https://opensource.guide/how-to-contribute) and their section on [Opening Issues](https://opensource.guide/how-to-contribute/#opening-an-issue).
 
 > [!TIP]
-> Filling our our issue templates will help us gather all the necessary information to troubleshoot your issue efficiently. Issues that are missing details may take longer to be fixed.
+> Filing issues with detailed information will help us troubleshoot your issue efficiently. Issues that are missing important details may require more followup questions and may take longer to be fixed.
 
 ## Contribution Standards
 
