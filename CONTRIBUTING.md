@@ -27,7 +27,7 @@ In order to maintain a high level of code quality, we have certain standards of 
 
 Following these standards when you contribute will help your contributions get merged faster. If a maintainer determines your change to be in violation of one of these standards, you will be informed and given an opportunity to correct your PR.
 
-Repeat violations of these standards may result in the closure of your PRs, a ban from the project, referral for CHAOSS Code of Conduct violations, or other remedies deemed by the maintainers to be in the best interests of the overall health of the project. 
+Repeat violations of these standards may result in the closure of your PRs, a ban from the project, referral for [CHAOSS Code of Conduct](https://www.chaoss.community/code-of-conduct/) violations, or other remedies deemed by the maintainers to be in the best interests of the overall health of the project. 
 
 ## How to contribute to the source code
 We welcome pull requests from anyone!
