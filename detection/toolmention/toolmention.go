@@ -2,7 +2,6 @@ package toolmention
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 	"strings"

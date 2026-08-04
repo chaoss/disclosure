@@ -604,3 +604,15 @@ func TestRunScanRejectsNaNConfidenceScore(t *testing.T) {
 		t.Errorf("expected error for NaN confidence score")
 	}
 }
+
+func TestRunScanInvalidWeightsMissingValue(t *testing.T) {
+	dir := initTestRepo(t)
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--weights=trailer=,toolmention=0.5", dir}, &stdout, &stderr)
+	if code != ExitError {
+		t.Fatalf("expected ExitError for missing weight value, got %d", code)
+	}
+	if !strings.Contains(stderr.String(), "invalid number in weights") {
+		t.Fatalf("expected numeric parse error, got stderr: %s", stderr.String())
+	}
+}

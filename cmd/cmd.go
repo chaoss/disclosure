@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
@@ -141,6 +142,10 @@ Examples:
 				flagMap := map[string]float64{}
 				parts := strings.SplitSeq(confidenceScoresFlag, ",")
 				for p := range parts {
+					p = strings.TrimSpace(p)
+					if p == "" {
+						continue
+					}
 					kv := strings.SplitN(p, "=", 2)
 					if len(kv) != 2 {
 						err := fmt.Errorf("invalid confidence-scores entry: %q", p)
@@ -149,14 +154,22 @@ Examples:
 						return err
 					}
 					key := strings.TrimSpace(kv[0])
-					var val float64
-					if _, err := fmt.Sscan(strings.TrimSpace(kv[1]), &val); err != nil {
-						fmt.Fprintln(stderr, "invalid number in confidence-scores:", kv[1])
+					if key == "" {
+						err := fmt.Errorf("empty key in confidence-scores entry: %q", p)
+						fmt.Fprintln(stderr, err)
 						*exitCode = ExitError
 						return err
 					}
-					if math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > 100 {
-						err := fmt.Errorf("invalid confidence score: %v", val)
+					valStr := strings.TrimSpace(kv[1])
+					if valStr == "" {
+						err := fmt.Errorf("empty value in confidence-scores entry: %q", p)
+						fmt.Fprintln(stderr, err)
+						*exitCode = ExitError
+						return err
+					}
+					val, err := strconv.ParseFloat(valStr, 64)
+					if err != nil || math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > 100 {
+						err = fmt.Errorf("invalid value in confidence-scores entry: %q", p)
 						fmt.Fprintln(stderr, err)
 						*exitCode = ExitError
 						return err

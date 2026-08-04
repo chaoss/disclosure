@@ -2,7 +2,6 @@ package trailer
 
 import (
 	"fmt"
-	"log"
 	"slices"
 	"strings"
 
@@ -179,7 +178,7 @@ func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.F
 			score += detection.CoauthorKnownEmailBonusPoints
 			confidence, err := detection.ScoreToConfidence(score)
 			if err != nil {
-				log.Fatal(err)
+				confidence = detection.ConfidenceNone
 			}
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
@@ -222,7 +221,7 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 		score := detection.AssistedByTrailerBaseScore
 		confidence, err := detection.ScoreToConfidence(score)
 		if err != nil {
-			log.Fatal(err)
+			confidence = detection.ConfidenceNone
 		}
 
 		findings = append(findings, detection.Finding{
@@ -243,7 +242,7 @@ func (d *Detector) detectMessagePatterns(commitMessage string) []detection.Findi
 		if score, isDetected := p.check(commitMessage); isDetected {
 			confidence, err := detection.ScoreToConfidence(score)
 			if err != nil {
-				log.Fatal(err)
+				confidence = detection.ConfidenceNone
 			}
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),

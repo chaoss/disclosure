@@ -2,7 +2,6 @@ package committer
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
@@ -32,7 +31,7 @@ func (d *Detector) detectEmail(email, identityField string) []detection.Finding 
 		score := detection.CommitterMatchBaseScore + detection.CommitterKnownEmailBonusPoints
 		confidence, err := detection.ScoreToConfidence(score)
 		if err != nil {
-			log.Fatal(err)
+			confidence = detection.ConfidenceNone
 		}
 		return []detection.Finding{{
 			Detector:   d.Name(),
@@ -49,7 +48,7 @@ func (d *Detector) detectEmail(email, identityField string) []detection.Finding 
 		score := detection.CommitterMatchBaseScore + detection.CommitterEmailSuffixBonusPoints
 		confidence, err := detection.ScoreToConfidence(score)
 		if err != nil {
-			log.Fatal(err)
+			confidence = detection.ConfidenceNone
 		}
 		if idx := strings.Index(email, "+"); idx > 0 {
 			prefix := email[:idx]

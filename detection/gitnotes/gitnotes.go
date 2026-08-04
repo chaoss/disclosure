@@ -2,7 +2,6 @@ package gitnotes
 
 import (
 	"fmt"
-	"log"
 	"sort"
 
 	"github.com/chaoss/disclosure/detection"
@@ -33,7 +32,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	score := detection.GitNotesMatchBaseScore
 	confidence, err := detection.ScoreToConfidence(score)
 	if err != nil {
-		log.Fatal(err)
+		confidence = detection.ConfidenceNone
 	}
 
 	for _, promptID := range promptIDs {
