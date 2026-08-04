@@ -7,7 +7,7 @@ The best way to get involved is to join the [CHAOSS Slack](https://chaoss.commun
 These resources are a great way to meet the people behind the project, ask questions, get help, participate in discussions, and stay updated on community meetings and planning. Everyone is welcome, so feel free to introduce yourself and ask for help if you get stuck or feel frustrated with any part of this setup process!
 
 ## Opening an issue
-If you're experiencing an issue you can search for your problem or question on our [issues](https://github.com/chaoss/disclosure/issues) page to see if someone else has already reported it. If you cannot find your issue, please feel free to [open a new one](https://github.com/chaoss/disclosure/issues/new/choose).
+If you're experiencing an issue you can search for your problem or question on our [issues](https://github.com/chaoss/disclosure/issues) page to see if someone else has already reported it. If you cannot find your issue, please feel free to [open a new one](https://github.com/chaoss/disclosure/issues/new).
 
 If you are new to opening issues, we recommend [opensource.guide](https://opensource.guide/how-to-contribute) and their section on [Opening Issues](https://opensource.guide/how-to-contribute/#opening-an-issue).
 
