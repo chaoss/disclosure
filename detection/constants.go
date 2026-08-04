@@ -65,7 +65,7 @@ var SupportedToolsInMentions = []string{
 	"Zed AI",
 	"Zhipu AI",
 	"Z.ai",
-	"GLM",
+	"GLM-4",
 	"ChatGLM",
 	"ZCode",
 	"Gemma",

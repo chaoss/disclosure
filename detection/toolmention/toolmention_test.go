@@ -126,8 +126,8 @@ func TestDetect(t *testing.T) {
 		},
 		{
 			name:      "Z.ai ecosystem tools",
-			input:     detection.Input{Text: "Used GLM inside ZCode via Z.ai orchestrator"},
-			wantTools: []string{"GLM", "ZCode", "Z.ai"},
+			input:     detection.Input{Text: "Used GLM-4 inside ZCode via Z.ai orchestrator"},
+			wantTools: []string{"GLM-4", "ZCode", "Z.ai"},
 		},
 		{
 			name:      "Vibe coding platforms bolt and lovable",

@@ -20,9 +20,6 @@ var toolPatterns []toolPattern
 func init() {
 	const separator = `[\s_-]+`
 	names := append([]string(nil), detection.SupportedToolsInMentions...)
-	sort.SliceStable(names, func(i, j int) bool {
-		return len(names[i]) > len(names[j])
-	})
 	for _, name := range names {
 		parts := strings.FieldsFunc(name, func(r rune) bool {
 			return r == ' ' || r == '-'
