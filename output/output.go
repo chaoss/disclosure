@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 
 	"github.com/chaoss/disclosure/detection"
 	"github.com/chaoss/disclosure/scan"
@@ -21,6 +20,11 @@ func FormatJSON(w io.Writer, report scan.Report) error {
 // FormatText writes a human-readable summary to w.
 func FormatText(w io.Writer, report scan.Report) error {
 	fmt.Fprintf(w, "Scanned %d commits, %d with AI signals\n\n", report.Summary.TotalCommits, report.Summary.AICommits)
+
+	// overall numeric score
+	if report.Summary.OverallScore > 0 {
+		fmt.Fprintf(w, "Overall score: %.1f / 100\n\n", report.Summary.OverallScore)
+	}
 
 	if report.Summary.AICommits == 0 {
 		fmt.Fprintln(w, "No AI involvement detected.")
@@ -40,7 +44,15 @@ func FormatText(w io.Writer, report scan.Report) error {
 		if len(cr.Findings) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "Commit %s\n", cr.Hash[:12])
+		hash := cr.Hash
+		if len(hash) > 12 {
+			hash = hash[:12]
+		}
+		if cr.Score > 0 {
+			fmt.Fprintf(w, "Commit %s (score: %.1f)\n", hash, cr.Score)
+		} else {
+			fmt.Fprintf(w, "Commit %s\n", hash)
+		}
 		for _, f := range cr.Findings {
 			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
 		}
@@ -57,6 +69,10 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 	}
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
+	// compute consolidated score for these findings
+	overall, _ := detection.ConsolidateFindingScore(findings, nil)
+	fmt.Fprintf(w, "Overall score: %.1f / 100\n", overall)
+
 	for _, f := range findings {
 		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
 	}
@@ -68,8 +84,12 @@ func FormatJSONFindings(w io.Writer, findings []detection.Finding) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(struct {
-		Findings []detection.Finding `json:"findings"`
-	}{Findings: findings})
+		Findings     []detection.Finding `json:"findings"`
+		OverallScore float64             `json:"overall_score"`
+	}{
+		Findings:     findings,
+		OverallScore: func() float64 { s, _ := detection.ConsolidateFindingScore(findings, nil); return s }(),
+	})
 }
 
 func sortedKeys(m map[string]int) []string {
@@ -79,18 +99,4 @@ func sortedKeys(m map[string]int) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-// ConfidenceFromString parses a confidence string or numeric value.
-func ConfidenceFromString(s string) (detection.Confidence, error) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "1", "low":
-		return detection.ConfidenceLow, nil
-	case "2", "medium":
-		return detection.ConfidenceMedium, nil
-	case "3", "high":
-		return detection.ConfidenceHigh, nil
-	default:
-		return 0, fmt.Errorf("invalid confidence %q: use low/1, medium/2, or high/3", s)
-	}
 }

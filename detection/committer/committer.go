@@ -2,6 +2,7 @@ package committer
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
@@ -25,12 +26,19 @@ type Detector struct{}
 func (d *Detector) Name() string { return "committer" }
 
 func (d *Detector) detectEmail(email, identityField string) []detection.Finding {
+
 	// Direct match against known emails
 	if name, ok := detection.KnownAgentCommitters[email]; ok {
+		score := detection.CommitterMatchBaseScore + detection.CommitterKnownEmailBonusPoints
+		confidence, err := detection.ScoreToConfidence(score)
+		if err != nil {
+			log.Fatal(err)
+		}
 		return []detection.Finding{{
 			Detector:   d.Name(),
 			Tool:       name,
-			Confidence: detection.ConfidenceHigh,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     fmt.Sprintf("%s email %s matches known AI bot", identityField, email),
 		}}
 	}
@@ -38,13 +46,19 @@ func (d *Detector) detectEmail(email, identityField string) []detection.Finding 
 	// Numeric prefix match for GitHub noreply emails (#4).
 	// Format: <numeric-id>+<username>@users.noreply.github.com
 	if strings.HasSuffix(email, detection.GithubNoReplyEmailSuffix) {
+		score := detection.CommitterMatchBaseScore + detection.CommitterEmailSuffixBonusPoints
+		confidence, err := detection.ScoreToConfidence(score)
+		if err != nil {
+			log.Fatal(err)
+		}
 		if idx := strings.Index(email, "+"); idx > 0 {
 			prefix := email[:idx]
 			if name, ok := numericPrefixIndex[prefix]; ok {
 				return []detection.Finding{{
 					Detector:   d.Name(),
 					Tool:       name,
-					Confidence: detection.ConfidenceHigh,
+					Score:      score,
+					Confidence: confidence,
 					Detail:     fmt.Sprintf("%s email %s matches known AI bot", identityField, email),
 				}}
 			}

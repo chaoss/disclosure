@@ -2,6 +2,7 @@ package gitnotes
 
 import (
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/chaoss/disclosure/detection"
@@ -29,6 +30,11 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		promptIDs = append(promptIDs, promptID)
 	}
 	sort.Strings(promptIDs)
+	score := detection.GitNotesMatchBaseScore
+	confidence, err := detection.ScoreToConfidence(score)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	for _, promptID := range promptIDs {
 		prompt := parseResult.Metadata.Prompts[promptID]
@@ -55,7 +61,8 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 			Detector:   d.Name(),
 			Tool:       tool,
 			Model:      model,
-			Confidence: detection.ConfidenceHigh,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     detail,
 		})
 	}

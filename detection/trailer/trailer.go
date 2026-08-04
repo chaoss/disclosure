@@ -2,6 +2,7 @@ package trailer
 
 import (
 	"fmt"
+	"log"
 	"slices"
 	"strings"
 
@@ -36,57 +37,66 @@ func extractToolFromText(text string) (string, error) {
 }
 
 var commitMessagePatterns = []struct {
-	check func(string) (detection.Confidence, bool)
+	check func(string) (float64, bool)
 	name  string
 }{
 	{
-		check: func(msg string) (detection.Confidence, bool) {
-			return detection.ConfidenceMedium, strings.HasPrefix(strings.ToLower(msg), detection.AiderCommitPrefix)
+		check: func(msg string) (float64, bool) {
+			if strings.HasPrefix(strings.ToLower(msg), detection.AiderCommitPrefix) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			return detection.TrailerNotMatchedScore, false
 		},
 		name: "Aider",
 	},
 	{
-		check: func(msg string) (detection.Confidence, bool) {
-			return detection.ConfidenceMedium, strings.Contains(msg, detection.ClaudeAttributionText)
+		check: func(msg string) (float64, bool) {
+			if strings.Contains(msg, detection.ClaudeAttributionText) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			return detection.TrailerNotMatchedScore, false
 		},
 		name: "Claude Code",
 	},
 	{
-		check: func(msg string) (detection.Confidence, bool) {
+		check: func(msg string) (float64, bool) {
+			matchedTrailerCount := 0
 			for _, trailer := range detection.EntireIOTrailers {
 				if strings.Contains(msg, fmt.Sprintf("\n%s:", trailer)) {
-					return detection.ConfidenceMedium, true
+					matchedTrailerCount += 1
 				}
 			}
-			return detection.ConfidenceMedium, false
+			if matchedTrailerCount > 0 {
+				score := detection.TrailerMatchBaseScore + (float64(matchedTrailerCount-1))*detection.AdditionalTrailerBonusPoints
+				return score, true
+			}
+			return detection.TrailerNotMatchedScore, false
 		},
 		name: "EntireIO",
 	},
 	{
-		check: func(msg string) (detection.Confidence, bool) {
+		check: func(msg string) (float64, bool) {
 			matchResult := detection.ReplitAttributionPattern.FindStringSubmatch(msg)
 			if len(matchResult) == 0 {
 				// replit not detected
-				return detection.ConfidenceMedium, false
+				return detection.TrailerNotMatchedScore, false
 			}
 
-			var confidence detection.Confidence
+			var score float64 = 0
 			switch matchResult[1] {
-			case "Agent":
-				confidence = detection.ConfidenceMedium
-			case "Assistant":
-				confidence = detection.ConfidenceLow
+			case "Agent", "Assistant":
+				score += detection.TrailerMatchBaseScore
 			default:
 				// unknown replit product, we cannot confirm ai use
-				return detection.ConfidenceLow, false
+				return detection.TrailerNotMatchedScore, false
 			}
 
-			// if commit session id also present, increase confidence
+			// bonus points if commit session id also present
 			if matchResult[2] != "" {
-				confidence.Increment()
+				score += detection.SessionIDBonusPoints
 			}
 
-			return confidence, true
+			return score, true
 		},
 		name: "Replit",
 	},
@@ -155,18 +165,28 @@ func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.F
 
 		namePart := strings.TrimSpace(match[1])
 		email := strings.ToLower(strings.TrimSpace(match[2]))
+		score := detection.CoauthoredByTrailerBaseScore
 
 		if name, ok := detection.KnownCoAuthorEmails[email]; ok {
 			model := extractCoauthorModel(name, namePart)
+			if model != "" {
+				score += detection.CoauthorModelBonusPoints
+			}
 			key := toolModelPair{tool: name, model: model}
 			if seen[key] {
 				continue
+			}
+			score += detection.CoauthorKnownEmailBonusPoints
+			confidence, err := detection.ScoreToConfidence(score)
+			if err != nil {
+				log.Fatal(err)
 			}
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       name,
 				Model:      model,
-				Confidence: detection.ConfidenceHigh,
+				Score:      score,
+				Confidence: confidence,
 				Detail:     fmt.Sprintf("Co-Authored-By trailer with email %s", email),
 			})
 			seen[key] = true
@@ -199,10 +219,17 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 			continue
 		}
 
+		score := detection.AssistedByTrailerBaseScore
+		confidence, err := detection.ScoreToConfidence(score)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       matchedTool,
-			Confidence: detection.ConfidenceHigh,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     fmt.Sprintf("Assisted-By trailer with tool %s", matchedTool),
 		})
 		seen[matchedToolKey] = true
@@ -213,10 +240,15 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 func (d *Detector) detectMessagePatterns(commitMessage string) []detection.Finding {
 	var findings []detection.Finding
 	for _, p := range commitMessagePatterns {
-		if confidence, isDetected := p.check(commitMessage); isDetected {
+		if score, isDetected := p.check(commitMessage); isDetected {
+			confidence, err := detection.ScoreToConfidence(score)
+			if err != nil {
+				log.Fatal(err)
+			}
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       p.name,
+				Score:      score,
 				Confidence: confidence,
 				Detail:     fmt.Sprintf("commit message matches %s pattern", p.name),
 			})

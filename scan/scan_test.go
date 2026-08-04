@@ -104,17 +104,17 @@ func TestScanCommitRange(t *testing.T) {
 	dir, hashes := initTestRepo(t)
 	detectors := allDetectors()
 
-	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[3], detectors)
+	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[4], detectors)
 	if err != nil {
 		t.Fatalf("ScanCommitRange: %v", err)
 	}
 
-	if report.Summary.TotalCommits != 3 {
-		t.Errorf("total commits = %d, want 3", report.Summary.TotalCommits)
+	if report.Summary.TotalCommits != 4 {
+		t.Errorf("total commits = %d, want 4", report.Summary.TotalCommits)
 	}
 
-	if report.Summary.AICommits != 3 {
-		t.Errorf("ai commits = %d, want 3", report.Summary.AICommits)
+	if report.Summary.AICommits != 4 {
+		t.Errorf("ai commits = %d, want 4", report.Summary.AICommits)
 	}
 
 	// Check that Claude Code was detected via co-author
@@ -140,6 +140,31 @@ func TestScanCommitRange(t *testing.T) {
 	// Check detection via assisted-by pattern 3
 	if count, ok := report.Summary.ToolCounts["Kimi K2.6"]; !ok || count == 0 {
 		t.Error("expected Kimi K2.6 Opus in tool counts")
+	}
+
+	// Check overall score
+	if report.Summary.OverallScore < 0 || report.Summary.OverallScore > 100 {
+		t.Error("invalid overall score")
+	}
+	perDetectorScores := report.Summary.PerDetectorScores
+	committerScore := perDetectorScores["committer"]
+	if committerScore != 95 {
+		t.Errorf("expected committer score to be 85, found %f", committerScore)
+	}
+	gitnotesScore := perDetectorScores["gitnotes"]
+	if gitnotesScore != 0 {
+		t.Errorf("expected gitnotes score to be 0, found %f", gitnotesScore)
+	}
+	toolmentionScore := perDetectorScores["toolmention"]
+	if toolmentionScore != 20 {
+		t.Errorf("expected toolmention score to be 20, found %f", toolmentionScore)
+	}
+	trailerScore := perDetectorScores["trailer"]
+	if trailerScore != 85 {
+		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
+	}
+	if report.Summary.OverallScore != 66.67 {
+		t.Errorf("expected overall score to be 66.67, found %f", report.Summary.OverallScore)
 	}
 }
 
@@ -203,6 +228,30 @@ func TestScanCommit(t *testing.T) {
 
 	if len(result.Findings) == 0 {
 		t.Error("expected findings for assisted-by and co-author trailers")
+	}
+
+	for _, f := range result.Findings {
+		if f.Score <= 0 {
+			t.Errorf(
+				"finding %s score=%v, expected positive score",
+				f.Tool,
+				f.Score,
+			)
+		}
+
+		expectedConfidence, err := detection.ScoreToConfidence(f.Score)
+		if err != nil {
+			t.Fatalf("score conversion failed: %v", err)
+		}
+
+		if f.Confidence != expectedConfidence {
+			t.Errorf(
+				"%s confidence=%d want=%d",
+				f.Tool,
+				f.Confidence,
+				expectedConfidence,
+			)
+		}
 	}
 
 	foundCoauthor := false
@@ -360,5 +409,106 @@ func TestReportSummaryByConfidence(t *testing.T) {
 	// Message pattern should give medium confidence
 	if count, ok := report.Summary.ByConfidence["medium"]; !ok || count == 0 {
 		t.Error("expected medium confidence findings")
+	}
+}
+
+func TestScanReportNoFindingsHasZeroScore(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[1], nil)
+	if err != nil {
+		t.Fatalf("ScanCommitRange: %v", err)
+	}
+
+	if report.Summary.OverallScore != 0 {
+		t.Fatalf("overall score = %v, want 0", report.Summary.OverallScore)
+	}
+
+	for _, cr := range report.Commits {
+		if cr.Score != 0 {
+			t.Fatalf("commit %s score = %v, want 0", cr.Hash, cr.Score)
+		}
+	}
+}
+
+func TestScanReportInvalidRange(t *testing.T) {
+	dir, _ := initTestRepo(t)
+
+	_, err := ScanCommitRange(dir, "invalid..range", allDetectors())
+	if err == nil {
+		t.Fatal("expected to return an error")
+	}
+}
+
+func TestScanCommitNoAI(t *testing.T) {
+	dir := t.TempDir()
+
+	repo, err := git.PlainInit(dir, false)
+	if err != nil {
+		t.Fatalf("init repo: %v", err)
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("worktree: %v", err)
+	}
+
+	filename := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(filename, []byte("package main\nfunc main() {}"), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	if _, err := wt.Add("main.go"); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	hash, err := wt.Commit("fix normal bug", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "Developer",
+			Email: "developer@example.com",
+			When:  time.Now(),
+		},
+		Committer: &object.Signature{
+			Name:  "Developer",
+			Email: "developer@example.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	result, err := ScanCommit(dir, hash.String(), allDetectors())
+	if err != nil {
+		t.Fatalf("ScanCommit: %v", err)
+	}
+
+	if result.Hash != hash.String() {
+		t.Errorf("hash=%q want %q", result.Hash, hash.String())
+	}
+
+	if len(result.Findings) != 0 {
+		t.Errorf("expected no findings, got %d: %#v", len(result.Findings), result.Findings)
+	}
+
+	if result.Score != 0 {
+		t.Errorf("score=%v want 0", result.Score)
+	}
+}
+
+func TestScanCommitEmptyDetectorList(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	result, err := ScanCommit(dir, hashes[1], nil)
+	if err != nil {
+		t.Fatalf("ScanCommit: %v", err)
+	}
+
+	if len(result.Findings) != 0 {
+		t.Errorf("findings=%v want none", result.Findings)
+	}
+
+	if result.Score != 0 {
+		t.Errorf("score=%v want 0", result.Score)
 	}
 }

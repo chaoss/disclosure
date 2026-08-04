@@ -1,6 +1,8 @@
 package toolmention
 
 import (
+	"fmt"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -90,6 +92,12 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		toolMatches = append(toolMatches, match)
 		seen[match.name] = struct{}{}
 		lastEnd = match.end
+	}
+
+	score := detection.ToolMentionBaseScore
+	confidence, err := detection.ScoreToConfidence(score)
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	findings := make([]detection.Finding, 0, len(toolMatches))

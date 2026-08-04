@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -83,6 +84,8 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var rangeFlag string
 	var formatFlag string
 	var minConfFlag string
+	var weightsFlag string
+	var confidenceScoresFlag string
 
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
@@ -126,11 +129,76 @@ Examples:
 				repoPath = args[0]
 			}
 
-			minConf, err := output.ConfidenceFromString(minConfFlag)
+			minConf, err := detection.ConfidenceFromString(minConfFlag)
 			if err != nil {
 				fmt.Fprintln(stderr, err)
 				*exitCode = ExitError
 				return err
+			}
+
+			// parse confidence-scores override if provided
+			if strings.TrimSpace(confidenceScoresFlag) != "" {
+				flagMap := map[string]float64{}
+				parts := strings.SplitSeq(confidenceScoresFlag, ",")
+				for p := range parts {
+					kv := strings.SplitN(p, "=", 2)
+					if len(kv) != 2 {
+						err := fmt.Errorf("invalid confidence-scores entry: %q", p)
+						fmt.Fprintln(stderr, err)
+						*exitCode = ExitError
+						return err
+					}
+					key := strings.TrimSpace(kv[0])
+					var val float64
+					if _, err := fmt.Sscan(strings.TrimSpace(kv[1]), &val); err != nil {
+						fmt.Fprintln(stderr, "invalid number in confidence-scores:", kv[1])
+						*exitCode = ExitError
+						return err
+					}
+					if math.IsNaN(val) || math.IsInf(val, 0) || val < 0 || val > 100 {
+						err := fmt.Errorf("invalid confidence score: %v", val)
+						fmt.Fprintln(stderr, err)
+						*exitCode = ExitError
+						return err
+					}
+					flagMap[key] = val
+				}
+				if err := detection.SetConfidenceScoresFromStrings(flagMap); err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+			}
+
+			// parse weights flag
+			scan.Weights = nil
+			if strings.TrimSpace(weightsFlag) != "" {
+				weightMap := map[string]float64{}
+				parts := strings.SplitSeq(weightsFlag, ",")
+				for p := range parts {
+					kv := strings.SplitN(p, "=", 2)
+					if len(kv) != 2 {
+						err := fmt.Errorf("invalid weights entry: %q", p)
+						fmt.Fprintln(stderr, err)
+						*exitCode = ExitError
+						return err
+					}
+					name := strings.TrimSpace(kv[0])
+					var val float64
+					if _, err := fmt.Sscan(strings.TrimSpace(kv[1]), &val); err != nil {
+						fmt.Fprintln(stderr, "invalid number in weights:", kv[1])
+						*exitCode = ExitError
+						return err
+					}
+					if math.IsNaN(val) || math.IsInf(val, 0) {
+						err := fmt.Errorf("invalid weight value: %v", val)
+						fmt.Fprintln(stderr, err)
+						*exitCode = ExitError
+						return err
+					}
+					weightMap[name] = val
+				}
+				scan.Weights = weightMap
 			}
 
 			detectors := allDetectors()
@@ -173,6 +241,8 @@ Examples:
 	cmd.Flags().StringVar(&rangeFlag, "range", "", "commit range in BASE..HEAD format")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+	cmd.Flags().StringVar(&weightsFlag, "weights", "", "comma-separated detector weights, e.g. 'trailer=0.8,toolmention=0.2'")
+	cmd.Flags().StringVar(&confidenceScoresFlag, "confidence-scores", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
 }
@@ -291,6 +361,9 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		},
 	}
 
+	// collect all findings to compute overall score after filtering
+	var overallScoreFindings []detection.Finding
+
 	for _, cr := range report.Commits {
 		var kept []detection.Finding
 		for _, f := range cr.Findings {
@@ -298,7 +371,10 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 				kept = append(kept, f)
 			}
 		}
-		result := scan.CommitResult{Hash: cr.Hash, Findings: kept}
+
+		// Recompute per-commit score from the kept findings and configured weights
+		commitScore, _ := detection.ConsolidateFindingScore(kept, scan.Weights)
+		result := scan.CommitResult{Hash: cr.Hash, Findings: kept, Score: commitScore}
 		filtered.Commits = append(filtered.Commits, result)
 
 		if len(kept) > 0 {
@@ -307,8 +383,13 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		for _, f := range kept {
 			filtered.Summary.ToolCounts[f.Tool]++
 			filtered.Summary.ByConfidence[f.Confidence.String()]++
+			overallScoreFindings = append(overallScoreFindings, f)
 		}
 	}
+
+	// Compute new overall score for the filtered report using the same weights.
+	overall, _ := detection.ConsolidateFindingScore(overallScoreFindings, scan.Weights)
+	filtered.Summary.OverallScore = overall
 
 	return filtered
 }
@@ -352,7 +433,7 @@ func generateDocs(exitCode *int) *cobra.Command {
 				docDir = filepath.Clean(filepath.Join(outputDir, formatFlag))
 				err = os.MkdirAll(docDir, 0o750)
 			} else {
-				err = fmt.Errorf("unknown format: %s\n", formatFlag)
+				err = fmt.Errorf("unknown format: %s", formatFlag)
 			}
 			if err != nil {
 				return prepareError(err)

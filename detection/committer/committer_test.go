@@ -6,6 +6,35 @@ import (
 	"github.com/chaoss/disclosure/detection"
 )
 
+const (
+	directMatchScore = detection.CommitterMatchBaseScore +
+		detection.CommitterKnownEmailBonusPoints
+
+	numericPrefixScore = detection.CommitterMatchBaseScore +
+		detection.CommitterEmailSuffixBonusPoints
+)
+
+func assertFindingMetadata(t *testing.T, finding detection.Finding, expectedScore float64) {
+	t.Helper()
+
+	if finding.Score != expectedScore {
+		t.Errorf("score = %v, want %v", finding.Score, expectedScore)
+	}
+
+	expectedConfidence, err := detection.ScoreToConfidence(expectedScore)
+	if err != nil {
+		t.Fatalf("failed to calculate confidence: %v", err)
+	}
+
+	if finding.Confidence != expectedConfidence {
+		t.Errorf("confidence = %d, want %d", finding.Confidence, expectedConfidence)
+	}
+
+	if finding.Detector != "committer" {
+		t.Errorf("detector = %q, want %q", finding.Detector, "committer")
+	}
+}
+
 func TestDetectAllKnownEmails(t *testing.T) {
 	d := &Detector{}
 	for email, expectedName := range detection.KnownAgentCommitters {
@@ -18,12 +47,7 @@ func TestDetectAllKnownEmails(t *testing.T) {
 		if findings[0].Tool != expectedName {
 			t.Errorf("Detect(%q): tool = %q, want %q", email, findings[0].Tool, expectedName)
 		}
-		if findings[0].Confidence != detection.ConfidenceHigh {
-			t.Errorf("Detect(%q): confidence = %d, want %d", email, findings[0].Confidence, detection.ConfidenceHigh)
-		}
-		if findings[0].Detector != "committer" {
-			t.Errorf("Detect(%q): detector = %q, want %q", email, findings[0].Detector, "committer")
-		}
+		assertFindingMetadata(t, findings[0], directMatchScore)
 	}
 }
 
@@ -47,6 +71,7 @@ func TestDetectMixedCase(t *testing.T) {
 		if findings[0].Tool != tc.wantTool {
 			t.Errorf("Detect(%q): tool = %q, want %q", tc.input, findings[0].Tool, tc.wantTool)
 		}
+		assertFindingMetadata(t, findings[0], directMatchScore)
 	}
 }
 
@@ -67,6 +92,7 @@ func TestDetectWhitespace(t *testing.T) {
 		if findings[0].Tool != "Claude" {
 			t.Errorf("Detect(%q): tool = %q, want %q", email, findings[0].Tool, "Claude")
 		}
+		assertFindingMetadata(t, findings[0], directMatchScore)
 	}
 }
 
@@ -112,6 +138,7 @@ func TestDetectNumericPrefix(t *testing.T) {
 		if findings[0].Tool != tc.wantTool {
 			t.Errorf("Detect(%q): tool = %q, want %q", tc.input, findings[0].Tool, tc.wantTool)
 		}
+		assertFindingMetadata(t, findings[0], numericPrefixScore)
 	}
 }
 
@@ -208,6 +235,7 @@ func TestDetectAuthorAndCommitter(t *testing.T) {
 				if finding.Detail != tt.wantDetails[i] {
 					t.Errorf("finding %d detail = %q, want %q", i, finding.Detail, tt.wantDetails[i])
 				}
+				assertFindingMetadata(t, finding, directMatchScore)
 			}
 		})
 	}

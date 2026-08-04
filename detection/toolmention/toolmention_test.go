@@ -13,96 +13,127 @@ func TestDetect(t *testing.T) {
 		name      string
 		input     detection.Input
 		wantTools []string
+		wantScore []float64
 	}{
 		{
 			name:      "Claude mention in text",
 			input:     detection.Input{Text: "I used Claude to write this PR"},
 			wantTools: []string{"Claude"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "Claude Code mention in text",
 			input:     detection.Input{Text: "Generated with Claude Code"},
 			wantTools: []string{"Claude Code"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "GitHub Copilot mention",
 			input:     detection.Input{Text: "GitHub Copilot helped with this"},
 			wantTools: []string{"GitHub Copilot"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "Copilot mention",
 			input:     detection.Input{Text: "Copilot was used to generate docs"},
 			wantTools: []string{"Copilot"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "multiple tools mentioned",
 			input:     detection.Input{Text: "I used Cursor and Aider for this PR"},
 			wantTools: []string{"Cursor", "Aider"},
+			wantScore: []float64{
+				detection.ToolMentionBaseScore,
+				detection.ToolMentionBaseScore,
+			},
 		},
 		{
 			name:      "case insensitive",
 			input:     detection.Input{Text: "I used CLAUDE to write this"},
 			wantTools: []string{"Claude"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "commit message scanned too",
 			input:     detection.Input{CommitMessage: "feat: add feature\n\nGenerated with Claude Code"},
 			wantTools: []string{"Claude Code"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "text and commit message combined",
 			input:     detection.Input{Text: "Used Cursor", CommitMessage: "aider: fix bug"},
 			wantTools: []string{"Cursor", "Aider"},
+			wantScore: []float64{
+				detection.ToolMentionBaseScore,
+				detection.ToolMentionBaseScore,
+			},
 		},
 		{
 			name:      "no mentions",
 			input:     detection.Input{Text: "This is a normal PR description"},
 			wantTools: nil,
+			wantScore: nil,
 		},
 		{
 			name:      "empty input with spaces",
 			input:     detection.Input{Text: "   ", CommitMessage: "\n   \n"},
 			wantTools: nil,
+			wantScore: nil,
 		},
 		{
 			name:      "empty input",
 			input:     detection.Input{},
 			wantTools: nil,
+			wantScore: nil,
 		},
 		{
 			name:      "word boundary prevents partial match",
 			input:     detection.Input{Text: "The cursory review found nothing"},
 			wantTools: nil,
+			wantScore: nil,
 		},
 		{
 			name:      "ChatGPT mention",
 			input:     detection.Input{Text: "I asked ChatGPT for help"},
 			wantTools: []string{"ChatGPT"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "t3.chat mention",
 			input:     detection.Input{Text: "I used t3.chat to compare model outputs"},
 			wantTools: []string{"t3.chat"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "t3.chat mention is case insensitive",
 			input:     detection.Input{Text: "Generated with T3.CHAT"},
 			wantTools: []string{"t3.chat"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "t3.chat word boundary prevents partial match",
 			input:     detection.Input{Text: "This mentions t3.chatty, not the tool"},
 			wantTools: nil,
+			wantScore: nil,
 		},
 		{
 			name:      "Windsurf mention",
 			input:     detection.Input{Text: "Written with Windsurf IDE"},
 			wantTools: []string{"Windsurf"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "Devin mention",
 			input:     detection.Input{Text: "Devin created this PR"},
 			wantTools: []string{"Devin"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
+		},
+		{
+			name:      "duplicate tool mentions only produce one finding",
+			input:     detection.Input{Text: "Claude helped here. Claude helped there."},
+			wantTools: []string{"Claude"},
+			wantScore: []float64{detection.ToolMentionBaseScore},
 		},
 		{
 			name:      "Qwen coder variant match",
@@ -249,29 +280,35 @@ func TestDetect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			findings := d.Detect(tt.input)
-			gotTools := make([]string, len(findings))
+
+			if len(findings) != len(tt.wantTools) {
+				t.Fatalf("findings count = %d, want %d. findings=%v", len(findings), len(tt.wantTools), findings)
+			}
+
+			if len(findings) != len(tt.wantScore) {
+				t.Fatalf("score count = %d, want %d", len(findings), len(tt.wantScore))
+			}
+
 			for i, f := range findings {
-				gotTools[i] = f.Tool
-				if f.Confidence != detection.ConfidenceLow {
-					t.Errorf("confidence = %d, want %d", f.Confidence, detection.ConfidenceLow)
+				if f.Tool != tt.wantTools[i] {
+					t.Errorf("tool[%d] = %q, want %q", i, f.Tool, tt.wantTools[i])
 				}
+
+				if f.Score != tt.wantScore[i] {
+					t.Errorf("score[%d] = %v, want %v", i, f.Score, tt.wantScore[i])
+				}
+
+				expectedConfidence, err := detection.ScoreToConfidence(tt.wantScore[i])
+				if err != nil {
+					t.Fatalf("failed to calculate confidence: %v", err)
+				}
+
+				if f.Confidence != expectedConfidence {
+					t.Errorf("confidence[%d] = %d, want %d", i, f.Confidence, expectedConfidence)
+				}
+
 				if f.Detector != "toolmention" {
-					t.Errorf("detector = %q, want %q", f.Detector, "toolmention")
-				}
-			}
-
-			if len(gotTools) == 0 {
-				gotTools = nil
-			}
-
-			if len(gotTools) != len(tt.wantTools) {
-				t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
-				return
-			}
-			for i := range gotTools {
-				if gotTools[i] != tt.wantTools[i] {
-					t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
-					return
+					t.Errorf("detector[%d] = %q, want %q", i, f.Detector, "toolmention")
 				}
 			}
 		})

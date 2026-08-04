@@ -195,11 +195,62 @@ func TestRunScanNoAI(t *testing.T) {
 	}
 }
 
+func TestRunTextCommandDetectsAI(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "input.txt")
+
+	os.WriteFile(file, []byte(
+		"I used Claude to write this",
+	), 0644)
+
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{
+		"text",
+		"--input=" + file,
+	}, &stdout, &stderr)
+
+	if code != ExitAI {
+		t.Errorf("code=%d want AI", code)
+	}
+}
+
+func TestRunTextCommandNoAI(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "input.txt")
+	os.WriteFile(file, []byte("plain text"), 0644)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"text",
+		"--input=" + file,
+	}, &stdout, &stderr)
+
+	if code != ExitNoAI {
+		t.Errorf("code=%d want no AI", code)
+	}
+}
+
 func TestRunScanInvalidRepo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", t.TempDir()}, &stdout, &stderr)
 	if code != ExitError {
 		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
+
+func TestRunScanInvalidFormat(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"scan", "--format=xml", dir}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+
+	if !strings.Contains(stderr.String(), "unknown format: xml") {
+		t.Errorf("expected invalid format error, got: %s", stderr.String())
 	}
 }
 
@@ -231,6 +282,35 @@ func TestFilterReport(t *testing.T) {
 	}
 	if filtered.Summary.AICommits != 1 {
 		t.Errorf("ai_commits = %d, want 1", filtered.Summary.AICommits)
+	}
+}
+
+func TestFilterReportAllFiltered(t *testing.T) {
+	report := scan.Report{
+		Commits: []scan.CommitResult{
+			{
+				Hash: "abc123",
+				Findings: []detection.Finding{
+					{
+						Detector:   "toolmention",
+						Confidence: detection.ConfidenceLow,
+					},
+				},
+			},
+		},
+		Summary: scan.Summary{
+			TotalCommits: 1,
+		},
+	}
+
+	filtered := filterReport(report, detection.ConfidenceHigh)
+
+	if filtered.Summary.AICommits != 0 {
+		t.Fatalf("AICommits=%d, want 0", filtered.Summary.AICommits)
+	}
+
+	if len(filtered.Commits[0].Findings) != 0 {
+		t.Fatalf("expected no findings")
 	}
 }
 
@@ -345,5 +425,182 @@ func TestRunDocsWriteError(t *testing.T) {
 
 	if code != ExitError {
 		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
+
+func TestRunDocsEmptyFormat(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+
+	code := Run([]string{
+		"docs",
+		"--format=",
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code=%d want error", code)
+	}
+}
+
+func TestRunScanWithWeightsFlag(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	// Give trailer weight 0 and toolmention weight 1 so only toolmention contributes
+	code := Run([]string{"scan", "--format=json", "--weights=trailer=0.55,toolmention=0.45", dir}, &stdout, &stderr)
+	if code != ExitAI && code != ExitNoAI {
+		t.Fatalf("unexpected exit code: %d (stderr: %s)", code, stderr.String())
+	}
+
+	var report scan.Report
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("unmarshal: %v (output: %s)", err, stdout.String())
+	}
+
+	var all []detection.Finding
+	for _, cr := range report.Commits {
+		all = append(all, cr.Findings...)
+	}
+
+	weights := map[string]float64{"trailer": 0.55, "toolmention": 0.45}
+	expectedOverall, _ := detection.ConsolidateFindingScore(all, weights)
+	if report.Summary.OverallScore != expectedOverall {
+		t.Fatalf("overall score = %v, want %v (weights applied)", report.Summary.OverallScore, expectedOverall)
+	}
+}
+
+func TestRunScanWithConfidenceScoresFlag(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+
+	// override confidence scores: low=10, medium=50, high=90
+	code := Run([]string{"scan", "--format=json", "--confidence-scores=low=10,medium=50,high=90", dir}, &stdout, &stderr)
+	if code != ExitAI && code != ExitNoAI {
+		t.Fatalf("unexpected exit code: %d (stderr: %s)", code, stderr.String())
+	}
+
+	var report scan.Report
+	if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
+		t.Fatalf("unmarshal: %v (output: %s)", err, stdout.String())
+	}
+
+	var all []detection.Finding
+	for _, cr := range report.Commits {
+		all = append(all, cr.Findings...)
+	}
+
+	expectedOverall, _ := detection.ConsolidateFindingScore(all, nil)
+	if report.Summary.OverallScore != expectedOverall {
+		t.Fatalf("overall score = %v, want %v (conf scores applied)", report.Summary.OverallScore, expectedOverall)
+	}
+}
+
+func TestRunScanInvalidMinConfidence(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan",
+		"--min-confidence=invalid",
+		dir,
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+
+	if !strings.Contains(stderr.String(), "invalid confidence") {
+		t.Errorf("expected confidence error, got: %s", stderr.String())
+	}
+}
+
+func TestRunScanInvalidWeightsFormat(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan",
+		"--weights=trailer",
+		dir,
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
+
+func TestRunScanInvalidConfidenceScoresFormat(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan",
+		"--confidence-scores=low",
+		dir,
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("exit code = %d, want %d", code, ExitError)
+	}
+}
+
+func TestFilterReportRecalculatesScore(t *testing.T) {
+	report := scan.Report{
+		Commits: []scan.CommitResult{
+			{
+				Hash: "abc123",
+				Findings: []detection.Finding{
+					{
+						Detector:   "toolmention",
+						Confidence: detection.ConfidenceLow,
+						Score:      20,
+					},
+					{
+						Detector:   "trailer",
+						Confidence: detection.ConfidenceHigh,
+						Score:      100,
+					},
+				},
+			},
+		},
+	}
+
+	filtered := filterReport(report, detection.ConfidenceHigh)
+
+	if filtered.Commits[0].Score != 100 {
+		t.Errorf(
+			"score=%v want 100",
+			filtered.Commits[0].Score,
+		)
+	}
+}
+
+func TestRunScanRejectsNaNWeights(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan",
+		"--weights=trailer=NaN",
+		dir,
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("expected error for NaN weight")
+	}
+}
+
+func TestRunScanRejectsNaNConfidenceScore(t *testing.T) {
+	dir := initTestRepo(t)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{
+		"scan",
+		"--confidence-scores=high=NaN",
+		dir,
+	}, &stdout, &stderr)
+
+	if code != ExitError {
+		t.Errorf("expected error for NaN confidence score")
 	}
 }

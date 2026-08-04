@@ -3,6 +3,8 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -24,10 +26,12 @@ func sampleReport() scan.Report {
 						Detail:     "Co-Authored-By trailer with email noreply@anthropic.com",
 					},
 				},
+				Score: 100.0,
 			},
 			{
 				Hash:     "def789ghi012",
 				Findings: nil,
+				Score:    0.0,
 			},
 		},
 		Summary: scan.Summary{
@@ -35,6 +39,7 @@ func sampleReport() scan.Report {
 			AICommits:    1,
 			ToolCounts:   map[string]int{"Claude Code": 1},
 			ByConfidence: map[string]int{"high": 1},
+			OverallScore: 100.0,
 		},
 	}
 }
@@ -83,6 +88,9 @@ func TestFormatText(t *testing.T) {
 	}
 	if !strings.Contains(out, "abc123def456") {
 		t.Errorf("expected commit hash in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Overall score") {
+		t.Errorf("expected overall score in output, got:\n%s", out)
 	}
 }
 
@@ -155,33 +163,163 @@ func TestFormatTextFindingsEmpty(t *testing.T) {
 	}
 }
 
-func TestConfidenceFromString(t *testing.T) {
-	tests := []struct {
-		input string
-		want  detection.Confidence
-		err   bool
-	}{
-		{"low", detection.ConfidenceLow, false},
-		{"1", detection.ConfidenceLow, false},
-		{"medium", detection.ConfidenceMedium, false},
-		{"2", detection.ConfidenceMedium, false},
-		{"high", detection.ConfidenceHigh, false},
-		{"3", detection.ConfidenceHigh, false},
-		{"HIGH", detection.ConfidenceHigh, false},
-		{"  low  ", detection.ConfidenceLow, false},
-		{"invalid", 0, true},
-		{"4", 0, true},
-		{"", 0, true},
+func TestFormatJSONEmptyReport(t *testing.T) {
+	var buf bytes.Buffer
+
+	report := scan.Report{}
+
+	if err := FormatJSON(&buf, report); err != nil {
+		t.Fatalf("FormatJSON: %v", err)
 	}
 
-	for _, tt := range tests {
-		got, err := ConfidenceFromString(tt.input)
-		if (err != nil) != tt.err {
-			t.Errorf("ConfidenceFromString(%q): err = %v, wantErr = %v", tt.input, err, tt.err)
-			continue
+	var decoded scan.Report
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if decoded.Summary.OverallScore != 0 {
+		t.Fatalf("overall score = %v, want 0", decoded.Summary.OverallScore)
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, fmt.Errorf("write failed")
+}
+
+func TestFormatJSONWriterError(t *testing.T) {
+	err := FormatJSON(failingWriter{}, sampleReport())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFormatTextZeroScore(t *testing.T) {
+	var buf bytes.Buffer
+
+	report := scan.Report{
+		Summary: scan.Summary{
+			TotalCommits: 1,
+			AICommits:    1,
+			OverallScore: 0,
+			ToolCounts:   map[string]int{},
+		},
+	}
+
+	if err := FormatText(&buf, report); err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(buf.String(), "Overall score") {
+		t.Error("did not expect overall score for zero")
+	}
+}
+
+func TestFormatTextShortHash(t *testing.T) {
+	var buf bytes.Buffer
+
+	report := scan.Report{
+		Commits: []scan.CommitResult{
+			{
+				Hash: "abc",
+				Findings: []detection.Finding{
+					{Detector: "test"},
+				},
+			},
+		},
+		Summary: scan.Summary{
+			AICommits: 1,
+		},
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic: %v", r)
 		}
-		if got != tt.want {
-			t.Errorf("ConfidenceFromString(%q) = %d, want %d", tt.input, got, tt.want)
-		}
+	}()
+
+	if err := FormatText(&buf, report); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestFormatTextFindingsIncludesScore(t *testing.T) {
+	var buf bytes.Buffer
+
+	findings := []detection.Finding{
+		{
+			Detector: "test",
+			Score:    100,
+		},
+	}
+
+	if err := FormatTextFindings(&buf, findings); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(buf.String(), "Overall score:") {
+		t.Fatal("missing score")
+	}
+}
+
+func TestFormatTextFindingsEmptySlice(t *testing.T) {
+	var buf bytes.Buffer
+
+	if err := FormatTextFindings(&buf, []detection.Finding{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(buf.String(), "No AI involvement detected") {
+		t.Fatal("expected no detection message")
+	}
+}
+
+func TestFormatJSONFindingsStructure(t *testing.T) {
+	var buf bytes.Buffer
+
+	findings := []detection.Finding{
+		{
+			Detector: "toolmention",
+			Tool:     "Claude",
+			Score:    100,
+		},
+	}
+
+	if err := FormatJSONFindings(&buf, findings); err != nil {
+		t.Fatal(err)
+	}
+
+	var decoded struct {
+		Findings []detection.Finding `json:"findings"`
+		Score    float64             `json:"overall_score"`
+	}
+
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(decoded.Findings) != 1 {
+		t.Fatalf("findings=%d want 1", len(decoded.Findings))
+	}
+
+	if decoded.Score != 100 {
+		t.Fatalf("score=%v want 100", decoded.Score)
+	}
+}
+
+func TestSortedKeys(t *testing.T) {
+	got := sortedKeys(map[string]int{
+		"c": 1,
+		"h": 1,
+		"a": 1,
+		"o": 1,
+		"s": 1,
+	})
+
+	want := []string{"a", "c", "h", "o", "s"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }
