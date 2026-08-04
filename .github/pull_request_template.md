@@ -31,5 +31,5 @@ Contributing Conventions:
 2. Build and test your changes before submitting a PR. 
 3. Sign your commits
 
-By following the community's [contribution conventions](https://github.com/chaoss/collectoss/blob/main/CONTRIBUTING.md) upfront, the review process will be accelerated and your PR merged more quickly.
+By following the community's [contribution conventions](https://github.com/chaoss/disclosure/blob/main/CONTRIBUTING.md) upfront, the review process will be accelerated and your PR merged more quickly.
 -->
