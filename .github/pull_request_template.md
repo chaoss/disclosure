@@ -1,7 +1,7 @@
 **Description**
 - Please include a summary of the change.
 
-This PR fixes #
+This PR fixes <github issue here (e.g. #21)>
 
 **Notes for Reviewers**
 
