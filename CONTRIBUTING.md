@@ -18,10 +18,10 @@ If you are new to opening issues, we recommend [opensource.guide](https://openso
 
 In order to maintain a high level of code quality, we have certain standards of behavior and contribution quality we expect from all contributors and contributions (regardless of whether those changes were made by hand or with tools).
 
-- **Discuss first, then code.** Open an issue, leave a comment, or reach out on Slack before submitting a PR (especially if its your first time). This creates an opportunity to get early feedback on your plan from the maintainers and allows you to check if the task has been claimed by someone else, avoiding wasted effort on both sides.
+- **Discuss first, then code.** Open an issue, leave a comment, or reach out on Slack before submitting a PR (especially if it's your first time). This creates an opportunity to get early feedback on your plan from the maintainers and allows you to check if the task has been claimed by someone else, avoiding wasted effort on both sides.
 - **Maintain situational awareness of your code and take responsibility.** The power to make changes to code that other people use requires taking responsibility. As a rule of thumb, if you can't explain why your change works or aren't prepared to answer follow-up questions from maintainers during review, consider picking a different issue to solve or asking maintainers for resources to help you learn the relevant concepts or details about the codebase.
 - **Be honest and upfront.** Honesty, integrity, and trust are an important part of how we maintain the quality of our codebase. We require that the sources be cited when they are not written by the author of the PR. This includes, but is not limited to: citing Stack Overflow when you copy and paste code, correctly attributing co-authorship on commits that are made collaboratively, and completing the AI disclosure and DCO portions of the PR template truthfully.
-- **Respect others time.** Project maintainers and other contributors may be volunteering their time to review your work, please be courteous and respect their time. If you can't respond to something for a few days, just say so! If your proposed changes (or any comments about them) are too long for you to proofread, they're likely too long for maintainers to read and should be reorganized or made smaller if possible.
+- **Respect other's time.** Project maintainers and other contributors may be volunteering their time to review your work, please be courteous and respect their time. If you can't respond to something for a few days, just say so! If your proposed changes (or any comments about them) are too long for you to proofread, they're likely too long for maintainers to read and should be reorganized or made smaller if possible.
 - **Remember the human.** Remember that the humans who are helping build this project are on the other side of your issues, comments, and Slack messages. Your words and actions should remain respectful, even if you disagree. Using inflammatory or hateful language is not acceptable. Simply outsourcing your workload to an LLM and relaying the output back doesn't help anyone grow and doesn't sustain our community.
 
 
@@ -46,7 +46,7 @@ Signed-off-by: Jane Smith <jane.smith@example.com>
 
 This can be easily done by using the `-s` flag when running the `git commit` command: `git commit -s -m "my commit message"`
 
-The PiHole project has more detailed guide on adding this signoff to your commits can be found on their ["How to sign-off commits"](https://docs.pi-hole.net/guides/github/how-to-signoff/) page.
+The Pi-hole project has a more detailed guide on their ["How to sign-off commits"](https://docs.pi-hole.net/guides/github/how-to-signoff/) page.
 
 > [!TIP]
 > Signing off commits is slightly easier and safer if you do it before you push your changes to GitHub.
