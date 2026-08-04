@@ -86,13 +86,19 @@ func TestRunUnknownCommand(t *testing.T) {
 }
 
 func TestRunVersion(t *testing.T) {
+	originalVersion := Version
+	Version = "1.2.3"
+	t.Cleanup(func() {
+		Version = originalVersion
+	})
+
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"version"}, &stdout, &stderr)
 	if code != ExitNoAI {
 		t.Errorf("exit code = %d, want %d", code, ExitNoAI)
 	}
-	if !strings.Contains(stdout.String(), "disclosure") {
-		t.Errorf("expected version output, got: %s", stdout.String())
+	if got, want := stdout.String(), "disclosure 1.2.3\n"; got != want {
+		t.Errorf("version output = %q, want %q", got, want)
 	}
 }
 
