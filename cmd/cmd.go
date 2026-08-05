@@ -118,7 +118,6 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var rangeFlag string
 	var formatFlag string
 	var minConfFlag string
-	var weightsFlag string
 	var confidenceScoresFlag string
 
 	cmd := &cobra.Command{
@@ -185,18 +184,6 @@ Examples:
 				}
 			}
 
-			// parse weights flag
-			scan.Weights = nil
-			if strings.TrimSpace(weightsFlag) != "" {
-				weightMap, err := parseKeyValueFloatList(weightsFlag)
-				if err != nil {
-					fmt.Fprintln(stderr, err)
-					*exitCode = ExitError
-					return err
-				}
-				scan.Weights = weightMap
-			}
-
 			detectors := allDetectors()
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
@@ -237,7 +224,6 @@ Examples:
 	cmd.Flags().StringVar(&rangeFlag, "range", "", "commit range in BASE..HEAD format")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
-	cmd.Flags().StringVar(&weightsFlag, "weights", "", "comma-separated detector weights, e.g. 'trailer=0.8,toolmention=0.2'")
 	cmd.Flags().StringVar(&confidenceScoresFlag, "confidence-scores", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
@@ -360,31 +346,30 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 	// collect all findings to compute overall score after filtering
 	var overallScoreFindings []detection.Finding
 
-	for _, cr := range report.Commits {
-		var kept []detection.Finding
-		for _, f := range cr.Findings {
+	for _, commit := range report.Commits {
+		var commitFindings []detection.Finding
+		for _, f := range commit.Findings {
 			if f.Confidence >= minConf {
-				kept = append(kept, f)
+				commitFindings = append(commitFindings, f)
 			}
 		}
 
-		// Recompute per-commit score from the kept findings and configured weights
-		commitScore, _ := detection.ConsolidateFindingScore(kept, scan.Weights)
-		result := scan.CommitResult{Hash: cr.Hash, Findings: kept, Score: commitScore}
+		// Recompute per-commit score from the kept findings
+		commitScore, _ := detection.ConsolidateScoreByFindings(commitFindings)
+		result := scan.CommitResult{Hash: commit.Hash, Findings: commitFindings, Score: commitScore}
 		filtered.Commits = append(filtered.Commits, result)
-
-		if len(kept) > 0 {
+		if len(commitFindings) > 0 {
 			filtered.Summary.AICommits++
 		}
-		for _, f := range kept {
-			filtered.Summary.ToolCounts[f.Tool]++
-			filtered.Summary.ByConfidence[f.Confidence.String()]++
-			overallScoreFindings = append(overallScoreFindings, f)
+		for _, commitFinding := range commitFindings {
+			filtered.Summary.ToolCounts[commitFinding.Tool]++
+			filtered.Summary.ByConfidence[commitFinding.Confidence.String()]++
+			overallScoreFindings = append(overallScoreFindings, commitFinding)
 		}
 	}
 
-	// Compute new overall score for the filtered report using the same weights.
-	overall, _ := detection.ConsolidateFindingScore(overallScoreFindings, scan.Weights)
+	// Compute new overall score for the filtered report.
+	overall, _ := detection.ConsolidateScoreByFindings(overallScoreFindings)
 	filtered.Summary.OverallScore = overall
 
 	return filtered

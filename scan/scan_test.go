@@ -142,10 +142,7 @@ func TestScanCommitRange(t *testing.T) {
 		t.Error("expected Kimi K2.6 Opus in tool counts")
 	}
 
-	// Check overall score
-	if report.Summary.OverallScore < 0 || report.Summary.OverallScore > 100 {
-		t.Error("invalid overall score")
-	}
+	// Check scoring
 	perDetectorScores := report.Summary.PerDetectorScores
 	committerScore := perDetectorScores["committer"]
 	if committerScore != 95 {
@@ -163,8 +160,8 @@ func TestScanCommitRange(t *testing.T) {
 	if trailerScore != 85 {
 		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
 	}
-	if report.Summary.OverallScore != 66.67 {
-		t.Errorf("expected overall score to be 66.67, found %f", report.Summary.OverallScore)
+	if report.Summary.OverallScore != 200 {
+		t.Errorf("expected overall score to be 200, found %f", report.Summary.OverallScore)
 	}
 }
 
@@ -268,6 +265,28 @@ func TestScanCommit(t *testing.T) {
 	}
 	if !foundAssistedBy {
 		t.Error("expected assistedby finding for Kimi K2.6")
+	}
+
+	// Check scoring
+	perDetectorScores := result.PerDetectorScores
+	committerScore := perDetectorScores["committer"]
+	if committerScore != 0 {
+		t.Errorf("expected committer score to be 0, found %f", committerScore)
+	}
+	gitnotesScore := perDetectorScores["gitnotes"]
+	if gitnotesScore != 0 {
+		t.Errorf("expected gitnotes score to be 0, found %f", gitnotesScore)
+	}
+	toolmentionScore := perDetectorScores["toolmention"]
+	if toolmentionScore != 20 {
+		t.Errorf("expected toolmention score to be 20, found %f", toolmentionScore)
+	}
+	trailerScore := perDetectorScores["trailer"]
+	if trailerScore != 75 {
+		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
+	}
+	if result.Score != 95 {
+		t.Errorf("expected overall score to be 95, found %f", result.Score)
 	}
 }
 

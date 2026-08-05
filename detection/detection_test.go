@@ -57,19 +57,18 @@ func TestConsolidateFindings(t *testing.T) {
 	tests := []struct {
 		name               string
 		findings           []Finding
-		weights            map[string]float64
 		wantOverall        float64
 		wantDetectorScores map[string]float64
 		wantNaN            bool
 	}{
 		{
-			name: "equal weights",
+			name: "sum of individual detector scores",
 			findings: []Finding{
 				{Detector: "A", Score: 100},
 				{Detector: "B", Score: 50},
 				{Detector: "C", Score: 75},
 			},
-			wantOverall: 75,
+			wantOverall: 225,
 			wantDetectorScores: map[string]float64{
 				"A": 100,
 				"B": 50,
@@ -77,57 +76,31 @@ func TestConsolidateFindings(t *testing.T) {
 			},
 		},
 		{
-			name: "explicit weights",
+			name: "mix of positive and negative scores",
 			findings: []Finding{
 				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
+				{Detector: "B", Score: -50},
 				{Detector: "C", Score: 75},
 			},
-			weights: map[string]float64{
-				"A": 0.6,
-				"B": 0.2,
-				"C": 0.2,
-			},
-			wantOverall: 85,
+			wantOverall: 125,
 			wantDetectorScores: map[string]float64{
 				"A": 100,
-				"B": 50,
+				"B": -50,
 				"C": 75,
 			},
 		},
 		{
-			name: "weights normalized",
+			name: "max used to aggregated detector level scores",
 			findings: []Finding{
 				{Detector: "A", Score: 100},
 				{Detector: "B", Score: 50},
+				{Detector: "A", Score: 120},
 				{Detector: "C", Score: 75},
+				{Detector: "B", Score: -10},
 			},
-			weights: map[string]float64{
-				"A": 0.0,
-				"B": 0.2,
-				"C": 0.2,
-			},
-			wantOverall: 62.5,
+			wantOverall: 245,
 			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
-		},
-		{
-			name: "missing weights treated as zero",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights: map[string]float64{
-				"A": 0.0,
-				"C": 0.2,
-			},
-			wantOverall: 75,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
+				"A": 120,
 				"B": 50,
 				"C": 75,
 			},
@@ -145,7 +118,7 @@ func TestConsolidateFindings(t *testing.T) {
 			wantDetectorScores: map[string]float64{},
 		},
 		{
-			name: "duplicate detector keeps max score",
+			name: "single detector across all findings",
 			findings: []Finding{
 				{Detector: "A", Score: 20},
 				{Detector: "A", Score: 80},
@@ -179,155 +152,18 @@ func TestConsolidateFindings(t *testing.T) {
 			},
 		},
 		{
-			name: "empty weights fallback to equal",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights:     map[string]float64{},
-			wantOverall: 75,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
-		},
-		{
-			name: "all zero weights fallback to equal",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights: map[string]float64{
-				"A": 0,
-				"B": 0,
-				"C": 0,
-			},
-			wantOverall: 75,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
-		},
-		{
-			name: "negative weights treated as zero",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights: map[string]float64{
-				"A": -1,
-				"B": 1,
-				"C": -2,
-			},
-			wantOverall: 50,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
-		},
-		{
-			name: "extra weights ignored",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights: map[string]float64{
-				"A": 1,
-				"B": 1,
-				"C": 1,
-				"D": 100,
-			},
-			wantOverall: 75,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
-		},
-		{
-			name: "overall clamped above 100",
-			findings: []Finding{
-				{Detector: "A", Score: 150},
-			},
-			wantOverall: 100,
-			wantDetectorScores: map[string]float64{
-				"A": 150,
-			},
-		},
-		{
-			name: "overall clamped below zero",
-			findings: []Finding{
-				{Detector: "A", Score: -50},
-			},
-			wantOverall: 0,
-			wantDetectorScores: map[string]float64{
-				"A": -50,
-			},
-		},
-		{
 			name: "NaN score",
 			findings: []Finding{
 				{Detector: "A", Score: math.NaN()},
-			},
-			wantNaN: true,
-		},
-		{
-			name: "NaN weight",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
 				{Detector: "B", Score: 50},
 			},
-			weights: map[string]float64{
-				"A": math.NaN(),
-				"B": 1,
-			},
-			wantNaN: true,
-		},
-		{
-			name: "duplicate detectors keep max independently",
-			findings: []Finding{
-				{Detector: "A", Score: 20},
-				{Detector: "A", Score: 80},
-				{Detector: "B", Score: 10},
-				{Detector: "B", Score: 30},
-			},
-			wantOverall: 55,
-			wantDetectorScores: map[string]float64{
-				"A": 80,
-				"B": 30,
-			},
-		},
-		{
-			name: "mixed positive and negative weights",
-			findings: []Finding{
-				{Detector: "A", Score: 100},
-				{Detector: "B", Score: 50},
-				{Detector: "C", Score: 75},
-			},
-			weights: map[string]float64{
-				"A": 2,
-				"B": -5,
-				"C": 2,
-			},
-			// normalized -> 0.5, 0, 0.5
-			wantOverall: 87.5,
-			wantDetectorScores: map[string]float64{
-				"A": 100,
-				"B": 50,
-				"C": 75,
-			},
+			wantOverall: math.NaN(),
+			wantNaN:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overall, perDetectorScores := ConsolidateFindingScore(tt.findings, tt.weights)
+			overall, perDetectorScores := ConsolidateScoreByFindings(tt.findings)
 
 			if tt.wantNaN {
 				if !math.IsNaN(overall) {

@@ -70,7 +70,7 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
 	// compute consolidated score for these findings
-	overall, _ := detection.ConsolidateFindingScore(findings, nil)
+	overall, _ := detection.ConsolidateScoreByFindings(findings)
 	fmt.Fprintf(w, "Overall score: %.1f / 100\n", overall)
 
 	for _, f := range findings {
@@ -88,7 +88,7 @@ func FormatJSONFindings(w io.Writer, findings []detection.Finding) error {
 		OverallScore float64             `json:"overall_score"`
 	}{
 		Findings:     findings,
-		OverallScore: func() float64 { s, _ := detection.ConsolidateFindingScore(findings, nil); return s }(),
+		OverallScore: func() float64 { s, _ := detection.ConsolidateScoreByFindings(findings); return s }(),
 	})
 }
 

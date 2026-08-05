@@ -286,18 +286,37 @@ func TestFilterReport(t *testing.T) {
 							},
 						},
 					},
+					{
+						Hash: "abc456",
+						Findings: []detection.Finding{
+							{
+								Detector:   "toolmention",
+								Tool:       "Claude",
+								Confidence: detection.ConfidenceLow,
+								Score:      20,
+							},
+							{
+								Detector:   "trailer",
+								Tool:       "Claude Code",
+								Confidence: detection.ConfidenceHigh,
+								Score:      100,
+							},
+						},
+					},
 				},
 				Summary: scan.Summary{
-					TotalCommits: 1,
-					AICommits:    1,
-					ToolCounts:   map[string]int{"Claude": 1, "Claude Code": 1},
-					ByConfidence: map[string]int{"low": 1, "high": 1},
+					TotalCommits:      2,
+					AICommits:         2,
+					ToolCounts:        map[string]int{"Claude": 2, "Claude Code": 2},
+					ByConfidence:      map[string]int{"low": 2, "high": 2},
+					PerDetectorScores: map[string]float64{"toolmention": 20, "trailer": 100},
+					OverallScore:      120,
 				},
 			},
 			minConf:       detection.ConfidenceHigh,
 			wantScore:     100,
-			wantAICommits: 1,
-			wantFindings:  1,
+			wantAICommits: 2,
+			wantFindings:  2, // only high confidence ones from both commits
 			wantTool:      "Claude Code",
 		},
 		{
@@ -370,6 +389,7 @@ func TestFilterReport(t *testing.T) {
 			},
 			minConf:      detection.ConfidenceLow,
 			wantFindings: 2,
+			wantScore:    120,
 		},
 	}
 
@@ -627,18 +647,8 @@ func TestRunScanFlags(t *testing.T) {
 			wantErrText: "invalid confidence",
 		},
 		{
-			name:     "invalid weights format",
-			args:     []string{"scan", "--weights=trailer", dir},
-			wantCode: ExitError,
-		},
-		{
 			name:     "invalid confidence scores format",
 			args:     []string{"scan", "--confidence-scores=low", dir},
-			wantCode: ExitError,
-		},
-		{
-			name:     "reject NaN weight",
-			args:     []string{"scan", "--weights=trailer=NaN", dir},
 			wantCode: ExitError,
 		},
 		{
@@ -647,13 +657,8 @@ func TestRunScanFlags(t *testing.T) {
 			wantCode: ExitError,
 		},
 		{
-			name: "both valid flags",
-			args: []string{
-				"scan",
-				"--weights=trailer=0.5,toolmention=0.5",
-				"--confidence-scores=low=15,medium=55,high=95",
-				dir,
-			},
+			name:     "both valid flags",
+			args:     []string{"scan", "--confidence-scores=low=15,medium=55,high=95", dir},
 			wantCode: ExitAI, // or ExitNoAI
 		},
 	}
@@ -687,23 +692,9 @@ func TestRunScanScoreFlags(t *testing.T) {
 	dir := initTestRepo(t)
 
 	tests := []struct {
-		name            string
-		args            []string
-		expectedWeights map[string]float64
+		name string
+		args []string
 	}{
-		{
-			name: "weights",
-			args: []string{
-				"scan",
-				"--format=json",
-				"--weights=trailer=0.55,toolmention=0.45",
-				dir,
-			},
-			expectedWeights: map[string]float64{
-				"trailer":     0.55,
-				"toolmention": 0.45,
-			},
-		},
 		{
 			name: "confidence scores",
 			args: []string{
@@ -712,7 +703,6 @@ func TestRunScanScoreFlags(t *testing.T) {
 				"--confidence-scores=low=10,medium=50,high=90",
 				dir,
 			},
-			expectedWeights: nil,
 		},
 	}
 
@@ -735,7 +725,7 @@ func TestRunScanScoreFlags(t *testing.T) {
 				findings = append(findings, c.Findings...)
 			}
 
-			expected, _ := detection.ConsolidateFindingScore(findings, tt.expectedWeights)
+			expected, _ := detection.ConsolidateScoreByFindings(findings)
 
 			if report.Summary.OverallScore != expected {
 				t.Fatalf("overall=%v want=%v",
@@ -751,34 +741,6 @@ func TestScanCommandInvalidFlags(t *testing.T) {
 		name string
 		args []string
 	}{
-		{
-			name: "weights missing equals",
-			args: []string{"--weights", "string_without_equals"},
-		},
-		{
-			name: "weights empty key",
-			args: []string{"--weights", "=0.5"},
-		},
-		{
-			name: "weights empty value",
-			args: []string{"--weights", "trailer="},
-		},
-		{
-			name: "weights invalid number",
-			args: []string{"--weights", "trailer=abc"},
-		},
-		{
-			name: "weights NaN",
-			args: []string{"--weights", "trailer=NaN"},
-		},
-		{
-			name: "weights Inf",
-			args: []string{"--weights", "trailer=Inf"},
-		},
-		{
-			name: "weights -Inf",
-			args: []string{"--weights", "trailer=-Inf"},
-		},
 		{
 			name: "confidence missing equals",
 			args: []string{"--confidence-scores", "low"},

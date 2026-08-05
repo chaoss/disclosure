@@ -1,7 +1,6 @@
 package toolmention
 
 import (
-	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -96,7 +95,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	score := detection.ToolMentionBaseScore
 	confidence, err := detection.ScoreToConfidence(score)
 	if err != nil {
-		log.Fatal(err)
+		confidence = detection.ConfidenceNone
 	}
 
 	findings := make([]detection.Finding, 0, len(toolMatches))
@@ -104,7 +103,8 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       match.name,
-			Confidence: detection.ConfidenceLow,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     "text mentions " + match.name,
 		})
 	}

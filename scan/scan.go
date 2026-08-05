@@ -7,9 +7,10 @@ import (
 
 // CommitResult holds findings for a single commit.
 type CommitResult struct {
-	Hash     string              `json:"hash"`
-	Findings []detection.Finding `json:"findings"`
-	Score    float64             `json:"score"`
+	Hash              string              `json:"hash"`
+	Findings          []detection.Finding `json:"findings"`
+	PerDetectorScores map[string]float64  `json:"per_detector_scores"`
+	Score             float64             `json:"score"`
 }
 
 // Summary aggregates stats across all commits scanned.
@@ -27,10 +28,6 @@ type Report struct {
 	Commits []CommitResult `json:"commits"`
 	Summary Summary        `json:"summary"`
 }
-
-// Weights can be set (e.g., from cli) to control detector weighting used when consolidating scores.
-// If nil, detectors are equally weighted.
-var Weights map[string]float64
 
 // ScanCommitRange scans all commits in the given range using the provided detectors.
 func ScanCommitRange(repoPath, commitRange string, detectors []detection.Detector) (Report, error) {
@@ -88,12 +85,13 @@ func scanOneCommit(c gitops.Commit, branchName string, detectors []detection.Det
 		findings = append(findings, d.Detect(input)...)
 	}
 
-	score, _ := detection.ConsolidateFindingScore(findings, Weights)
+	score, perDetectorScores := detection.ConsolidateScoreByFindings(findings)
 
 	return CommitResult{
-		Hash:     c.Hash,
-		Findings: findings,
-		Score:    score,
+		Hash:              c.Hash,
+		Findings:          findings,
+		PerDetectorScores: perDetectorScores,
+		Score:             score,
 	}
 }
 
@@ -116,7 +114,7 @@ func buildReport(results []CommitResult) Report {
 		}
 	}
 
-	overall, perDetectorScores := detection.ConsolidateFindingScore(allFindings, Weights)
+	overall, perDetectorScores := detection.ConsolidateScoreByFindings(allFindings)
 	summary.PerDetectorScores = perDetectorScores
 	summary.OverallScore = overall
 
