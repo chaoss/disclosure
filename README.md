@@ -180,3 +180,7 @@ action/                 GitHub Action (composite action + labeling)
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+Code is licensed under [GNU General Public License v3.0](https://github.com/chaoss/disclosure/blob/main/LICENSE).
