@@ -166,8 +166,9 @@ func TestScanCommitDetectsAcrossDetectors(t *testing.T) {
 	}
 
 	wantToolsByDetector := map[string]string{
-		(&committer.Detector{}).Name(): "GitHub Copilot (agent)",
-		(&trailer.Detector{}).Name():   "Kimi K2.6",
+		(&committer.Detector{}).Name():   "GitHub Copilot (agent)",
+		(&trailer.Detector{}).Name():     "Kimi K2.6",
+		(&toolmention.Detector{}).Name(): "Kimi",
 	}
 	if len(result.Findings) != len(wantToolsByDetector) {
 		t.Fatalf("got %d findings, want %d", len(result.Findings), len(wantToolsByDetector))
