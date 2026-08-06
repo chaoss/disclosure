@@ -7,12 +7,11 @@ import (
 )
 
 func TestDetect(t *testing.T) {
-	d := &Detector{}
-
 	tests := []struct {
-		name      string
-		input     detection.Input
-		wantTools []string
+		name                string
+		input               detection.Input
+		includeModelCatalog bool
+		wantTools           []string
 	}{
 		{
 			name:      "Claude mention in text",
@@ -78,6 +77,90 @@ func TestDetect(t *testing.T) {
 			name:      "ChatGPT mention",
 			input:     detection.Input{Text: "I asked ChatGPT for help"},
 			wantTools: []string{"ChatGPT"},
+		},
+		{
+			name:      "GPT-4 mention uses canonical display name once",
+			input:     detection.Input{Text: "I asked gpt-4 for help"},
+			wantTools: []string{"GPT-4"},
+		},
+		{
+			name:      "generated model mention is off by default",
+			input:     detection.Input{Text: "I used Aion-RP 1.0 for a comparison"},
+			wantTools: nil,
+		},
+		{
+			name:                "generated model mention when catalogue included",
+			input:               detection.Input{Text: "I used Aion-RP 1.0 for a comparison"},
+			includeModelCatalog: true,
+			wantTools:           []string{"Aion-RP 1.0"},
+		},
+		{
+			name:                "longest generated model match wins",
+			input:               detection.Input{Text: "I used Claude Opus 4.6 and GPT-4 Turbo"},
+			includeModelCatalog: true,
+			wantTools:           []string{"Claude Opus 4.6", "GPT-4 Turbo"},
+		},
+		{
+			name:      "generic router words do not match",
+			input:     detection.Input{Text: "Use the free router setting"},
+			wantTools: nil,
+		},
+		{
+			name:                "keyboard shortcut prose does not match ambiguous generated model",
+			input:               detection.Input{Text: "Press Command A to select all text"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:      "electronics prose does not match ambiguous model",
+			input:     detection.Input{Text: "The R1 resistor value changed during testing"},
+			wantTools: nil,
+		},
+		{
+			name:      "sonar prose does not match ambiguous model",
+			input:     detection.Input{Text: "The sonar data was noisy in shallow water"},
+			wantTools: nil,
+		},
+		{
+			name:      "spotlight prose does not match ambiguous model",
+			input:     detection.Input{Text: "The UI spotlight highlighted the primary button"},
+			wantTools: nil,
+		},
+		{
+			name:                "body builder prose does not match generated model",
+			input:               detection.Input{Text: "A body builder updated the training plan"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:                "weaver prose does not match generated model",
+			input:               detection.Input{Text: "The weaver repaired the fabric"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:                "bodybuilder prose does not match generated model",
+			input:               detection.Input{Text: "The bodybuilder updated the training plan"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:                "command a prose does not match generated model",
+			input:               detection.Input{Text: "Press Command A to select all text"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:                "common short generated model names do not match prose",
+			input:               detection.Input{Text: "The o1 visa, o3 zone, and Saba reference were unrelated"},
+			includeModelCatalog: true,
+			wantTools:           nil,
+		},
+		{
+			name:                "uncensored prose does not match generated model",
+			input:               detection.Input{Text: "The report included uncensored logs"},
+			includeModelCatalog: true,
+			wantTools:           nil,
 		},
 		{
 			name:      "t3.chat mention",
@@ -248,6 +331,7 @@ func TestDetect(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			d := &Detector{IncludeModelCatalog: tt.includeModelCatalog}
 			findings := d.Detect(tt.input)
 			gotTools := make([]string, len(findings))
 			for i, f := range findings {
@@ -275,5 +359,23 @@ func TestDetect(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func BenchmarkDetectNoMatchDefault(b *testing.B) {
+	d := &Detector{}
+	input := detection.Input{Text: "This ordinary engineering note has no AI disclosure signal."}
+
+	for b.Loop() {
+		_ = d.Detect(input)
+	}
+}
+
+func BenchmarkDetectNoMatchWithModelCatalog(b *testing.B) {
+	d := &Detector{IncludeModelCatalog: true}
+	input := detection.Input{Text: "This ordinary engineering note has no AI disclosure signal."}
+
+	for b.Loop() {
+		_ = d.Detect(input)
 	}
 }

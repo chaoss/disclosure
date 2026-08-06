@@ -1,6 +1,9 @@
 package detection
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // KnownAgentCommitters maps GitHub noreply emails to AI tool names.
 var KnownAgentCommitters = map[string]string{
@@ -128,6 +131,76 @@ var SupportedToolsInMentions = []string{
 	"Nemotron",
 	"Salesforce Codegen",
 	"CodeWhisperer",
+}
+
+var genericModelMentionKeys = map[string]struct{}{
+	"auto":             {},
+	"autorouter":       {},
+	"bodybuilder":      {},
+	"commanda":         {},
+	"commandr":         {},
+	"free":             {},
+	"freemodelsrouter": {},
+	"o1":               {},
+	"o3":               {},
+	"r1":               {},
+	"router":           {},
+	"saba":             {},
+	"sonar":            {},
+	"spotlight":        {},
+	"uncensored":       {},
+	"weaver":           {},
+}
+
+func SupportedToolMentions(includeGenerated bool) []string {
+	mentions := append([]string(nil), SupportedToolsInMentions...)
+	if includeGenerated {
+		mentions = appendCanonicalMentions(mentions, GeneratedModelMentions...)
+	}
+	return mentions
+}
+
+func appendCanonicalMentions(existing []string, candidates ...string) []string {
+	seen := make(map[string]struct{}, len(existing)+len(candidates))
+	for _, item := range existing {
+		key := strings.ToLower(strings.TrimSpace(item))
+		if key != "" {
+			seen[key] = struct{}{}
+		}
+	}
+
+	for _, candidate := range candidates {
+		canonical := strings.TrimSpace(candidate)
+		key := strings.ToLower(canonical)
+		if key == "" {
+			continue
+		}
+		if _, isGeneric := genericModelMentionKeys[modelMentionKey(canonical)]; isGeneric {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		existing = append(existing, canonical)
+		seen[key] = struct{}{}
+	}
+
+	return existing
+}
+
+func modelMentionKey(model string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' {
+			return r
+		}
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, model)
 }
 
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers

@@ -29,12 +29,12 @@ const (
 	ExitError = 2
 )
 
-func allDetectors() []detection.Detector {
+func allDetectors(includeModelCatalog bool) []detection.Detector {
 	return []detection.Detector{
 		&committer.Detector{},
 		&gitnotes.Detector{},
 		&trailer.Detector{},
-		&toolmention.Detector{},
+		&toolmention.Detector{IncludeModelCatalog: includeModelCatalog},
 	}
 }
 
@@ -81,6 +81,7 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var rangeFlag string
 	var formatFlag string
 	var minConfFlag string
+	var includeModelCatalogFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
@@ -130,7 +131,7 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors()
+			detectors := allDetectors(includeModelCatalogFlag)
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -170,6 +171,7 @@ Examples:
 	cmd.Flags().StringVar(&rangeFlag, "range", "", "commit range in BASE..HEAD format")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+	cmd.Flags().BoolVar(&includeModelCatalogFlag, "include-model-catalog", false, "include generated model catalogue in low-confidence text matching")
 
 	return cmd
 }
@@ -177,6 +179,7 @@ Examples:
 func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var inputFlag string
+	var includeModelCatalogFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -220,7 +223,7 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors()
+			detectors := allDetectors(includeModelCatalogFlag)
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			switch formatFlag {
@@ -252,6 +255,7 @@ Examples:
 
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
+	cmd.Flags().BoolVar(&includeModelCatalogFlag, "include-model-catalog", false, "include generated model catalogue in low-confidence text matching")
 
 	return cmd
 }
