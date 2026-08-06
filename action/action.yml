@@ -10,6 +10,11 @@ inputs:
     description: 'Enable/disable labeling, requires PR and Issue write permissions when enabled'
     required: false
     default: 'false'
+    # Note: Setting labeling-enabled to true will need write permissions to pull requests and issues,
+    # so consider setting the following in your calling action:
+    # permissions:
+    #   pull-requests: write
+    #   issues: write
   min-confidence:
     description: 'Minimum confidence level (low, medium, high)'
     required: false
@@ -31,7 +36,7 @@ runs:
   using: 'composite'
   steps:
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:
         go-version: '1.25'
 
