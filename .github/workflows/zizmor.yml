@@ -1,4 +1,4 @@
-name: GitHub Actions security scan
+name: GitHub Actions static analysis
 
 on:
   pull_request:
