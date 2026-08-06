@@ -212,7 +212,7 @@ Examples:
 			if inputFlag == "-" {
 				textBytes, err = io.ReadAll(os.Stdin)
 			} else {
-				textBytes, err = os.ReadFile(inputFlag)
+				textBytes, err = os.ReadFile(filepath.Clean(inputFlag))
 			}
 			if err != nil {
 				fmt.Fprintf(stderr, "error reading input: %v\n", err)
@@ -347,7 +347,7 @@ func generateDocs(exitCode *int) *cobra.Command {
 			// create required dir for docs inside output dir
 			if slices.Contains(supportedFormats, formatFlag) {
 				docDir = filepath.Clean(filepath.Join(outputDir, formatFlag))
-				err = os.MkdirAll(docDir, 0o755)
+				err = os.MkdirAll(docDir, 0o750)
 			} else {
 				err = fmt.Errorf("unknown format: %s\n", formatFlag)
 			}
