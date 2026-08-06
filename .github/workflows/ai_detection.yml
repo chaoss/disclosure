@@ -24,5 +24,6 @@ jobs:
       with:
         # we get commit history from base as its needed by the AI detection action
         fetch-depth: 0
+        persist-credentials: false
     - name: Run AI detection action
       uses: ./action
