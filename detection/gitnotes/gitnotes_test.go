@@ -13,10 +13,9 @@ func assertFindingMetadata(t *testing.T, finding detection.Finding, wantScore fl
 		t.Errorf("score = %f, want %f", finding.Score, wantScore)
 	}
 
-	expectedConfidence, err := detection.ScoreToConfidence(wantScore)
-	if err != nil {
-		t.Fatalf("failed to calculate confidence: %v", err)
-	}
+	expectedConfidence := detection.ScoreToConfidence(
+		detection.GetDefaultConfidenceLevels(), wantScore,
+	)
 
 	if finding.Confidence != expectedConfidence {
 		t.Errorf("confidence = %d, want %d", finding.Confidence, expectedConfidence)
@@ -28,7 +27,7 @@ func assertFindingMetadata(t *testing.T, finding detection.Finding, wantScore fl
 }
 
 func TestDetect(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 
 	validNote := `src/main.rs
   abcd1234abcd1234 1-10,15-20
@@ -182,7 +181,7 @@ src/lib.rs
 }
 
 func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	note := `src/main.rs
   first 1-10
   second 11-20
@@ -233,7 +232,7 @@ func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
 }
 
 func TestDetectDetailIncludesModel(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	note := `src/main.rs
   abcd1234abcd1234 1-10
 ---

@@ -1,6 +1,7 @@
 package detection
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -10,7 +11,7 @@ import (
 type Confidence int
 
 const (
-	ConfidenceNone              = 0 // Nil equivalent for confidence
+	ConfidenceNone   Confidence = 0 // Nil equivalent for confidence
 	ConfidenceLow    Confidence = 1 // Tool name mentioned in text
 	ConfidenceMedium Confidence = 2 // Commit message pattern match
 	ConfidenceHigh   Confidence = 3 // Bot email, co-author trailer, git AI ref
@@ -29,61 +30,90 @@ func (c Confidence) String() string {
 	}
 }
 
+func (c Confidence) MarshalJSON() ([]byte, error) {
+	return json.Marshal(c.String())
+}
+
+func (c *Confidence) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	switch s {
+	case "none":
+		*c = ConfidenceNone
+	case "low":
+		*c = ConfidenceLow
+	case "medium":
+		*c = ConfidenceMedium
+	case "high":
+		*c = ConfidenceHigh
+	default:
+		return fmt.Errorf("invalid confidence %q", s)
+	}
+
+	return nil
+}
+
 func (c *Confidence) Increment() {
 	*c = min(*c+1, ConfidenceHigh)
 }
 
-// Default mapping from Confidence -> numeric score (0..100).
-var defaultConfidenceScores = map[Confidence]float64{
-	ConfidenceLow:    30.0,
-	ConfidenceMedium: 70.0,
-	ConfidenceHigh:   100.0,
+func GetDefaultConfidenceLevels() map[Confidence]float64 {
+	return map[Confidence]float64{
+		ConfidenceLow:    30.0,
+		ConfidenceMedium: 70.0,
+		ConfidenceHigh:   100.0,
+	}
 }
 
-// confidenceScores holds the active mapping, can be overridence in tests or via cli.
-var confidenceScores = map[Confidence]float64{
-	ConfidenceLow:    defaultConfidenceScores[ConfidenceLow],
-	ConfidenceMedium: defaultConfidenceScores[ConfidenceMedium],
-	ConfidenceHigh:   defaultConfidenceScores[ConfidenceHigh],
-}
-
-func ScoreToConfidence(score float64) (Confidence, error) {
-	if score < 0 || score > 100 {
-		return ConfidenceNone, fmt.Errorf("invalid score, should be between 0 and 100")
+func ScoreToConfidence(confidenceLevels map[Confidence]float64, score float64) Confidence {
+	if score >= confidenceLevels[ConfidenceHigh] {
+		return ConfidenceHigh
+	}
+	if score <= confidenceLevels[ConfidenceLow] {
+		return ConfidenceLow
 	}
 	levels := []Confidence{ConfidenceLow, ConfidenceMedium, ConfidenceHigh}
 	for _, level := range levels {
-		if math.Round(score) <= confidenceScores[level] {
-			return level, nil
+		if math.Round(score) <= confidenceLevels[level] {
+			return level
 		}
 	}
-	return ConfidenceNone, fmt.Errorf("confidence intervals unable to categorize score")
+	return ConfidenceNone
 }
 
-// SetConfidenceScoresFromStrings allows to update confidenceScores using a custom map
-func SetConfidenceScoresFromStrings(userMapping map[string]float64) error {
-	tmp := map[Confidence]float64{}
+// SetConfidenceLevelsFromStrings allows to update confidenceLevels using a custom map
+func SetConfidenceLevelsFromStrings(
+	confidenceLevels map[Confidence]float64,
+	userMapping map[string]float64,
+) (map[Confidence]float64, error) {
 	for k, v := range userMapping {
 		k = strings.ToLower(strings.TrimSpace(k))
 		switch k {
 		case "low":
-			tmp[ConfidenceLow] = v
+			confidenceLevels[ConfidenceLow] = v
 		case "medium":
-			tmp[ConfidenceMedium] = v
+			confidenceLevels[ConfidenceMedium] = v
 		case "high":
-			tmp[ConfidenceHigh] = v
+			confidenceLevels[ConfidenceHigh] = v
 		default:
-			return fmt.Errorf("unsupported confidence key: %s", k)
+			return nil, fmt.Errorf("unsupported confidence key: %s", k)
 		}
 	}
 	// set defaults if unspecified in user mapping
-	for c, def := range defaultConfidenceScores {
-		if _, ok := tmp[c]; !ok {
-			tmp[c] = def
+	for c, def := range GetDefaultConfidenceLevels() {
+		if _, ok := confidenceLevels[c]; !ok {
+			confidenceLevels[c] = def
 		}
 	}
-	confidenceScores = tmp
-	return nil
+
+	if confidenceLevels[ConfidenceLow] >= confidenceLevels[ConfidenceMedium] ||
+		confidenceLevels[ConfidenceMedium] >= confidenceLevels[ConfidenceHigh] {
+		return nil, fmt.Errorf("low, medium, high must be in ascending order")
+	}
+	return confidenceLevels, nil
 }
 
 // ConfidenceFromString parses a confidence string or numeric value.
@@ -128,6 +158,7 @@ func (f Finding) DisplayTool() string {
 type Detector interface {
 	Name() string
 	Detect(input Input) []Finding
+	GetConfidenceLevels() map[Confidence]float64
 }
 
 // Input provides data for detectors to examine. Each detector reads the fields
@@ -181,7 +212,7 @@ func (input *Input) GetNotes() (GitnoteParseResult, error) {
 	return parseGitnotes(input.Notes)
 }
 
-// ConsolidateScoreByFindings computes per-detector scores and a overall score from findings
+// ConsolidateScoreByFindings computes per-detector scores and a total score from findings
 func ConsolidateScoreByFindings(findings []Finding) (float64, map[string]float64) {
 	// For each detector, we take max of all findings for that detector.
 	perDetectorScores := map[string]float64{}

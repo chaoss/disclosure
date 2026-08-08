@@ -101,9 +101,13 @@ var commitMessagePatterns = []struct {
 	},
 }
 
-type Detector struct{}
+type Detector struct {
+	ConfidenceLevels map[detection.Confidence]float64
+}
 
 func (d *Detector) Name() string { return "trailer" }
+
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 type toolModelPair struct {
 	tool  string
@@ -176,10 +180,7 @@ func (d *Detector) detectTrailerCoauthoredBy(commitMessage string) []detection.F
 				continue
 			}
 			score += detection.CoauthorKnownEmailBonusPoints
-			confidence, err := detection.ScoreToConfidence(score)
-			if err != nil {
-				confidence = detection.ConfidenceNone
-			}
+			confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       name,
@@ -219,10 +220,7 @@ func (d *Detector) detectTrailerAssistedBy(commitMessage string) []detection.Fin
 		}
 
 		score := detection.AssistedByTrailerBaseScore
-		confidence, err := detection.ScoreToConfidence(score)
-		if err != nil {
-			confidence = detection.ConfidenceNone
-		}
+		confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
@@ -240,10 +238,7 @@ func (d *Detector) detectMessagePatterns(commitMessage string) []detection.Findi
 	var findings []detection.Finding
 	for _, p := range commitMessagePatterns {
 		if score, isDetected := p.check(commitMessage); isDetected {
-			confidence, err := detection.ScoreToConfidence(score)
-			if err != nil {
-				confidence = detection.ConfidenceNone
-			}
+			confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 			findings = append(findings, detection.Finding{
 				Detector:   d.Name(),
 				Tool:       p.name,

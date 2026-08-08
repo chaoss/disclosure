@@ -32,13 +32,13 @@ const (
 	ExitError = 2
 )
 
-func allDetectors() []detection.Detector {
+func allDetectors(confidenceLevels map[detection.Confidence]float64) []detection.Detector {
 	return []detection.Detector{
-		&committer.Detector{},
-		&gitnotes.Detector{},
-		&trailer.Detector{},
-		&toolmention.Detector{},
-		&branchname.Detector{},
+		&committer.Detector{ConfidenceLevels: confidenceLevels},
+		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
+		&trailer.Detector{ConfidenceLevels: confidenceLevels},
+		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
+		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
 }
 
@@ -118,7 +118,7 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var rangeFlag string
 	var formatFlag string
 	var minConfFlag string
-	var confidenceScoresFlag string
+	var confidenceLevelsFlag string
 
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
@@ -169,22 +169,26 @@ Examples:
 				return err
 			}
 
-			// parse confidence-scores override if provided
-			if strings.TrimSpace(confidenceScoresFlag) != "" {
-				flagMap, err := parseKeyValueFloatList(confidenceScoresFlag)
+			// parse confidence-levels override if provided
+			confidenceLevels := detection.GetDefaultConfidenceLevels()
+			if strings.TrimSpace(confidenceLevelsFlag) != "" {
+				flagMap, err := parseKeyValueFloatList(confidenceLevelsFlag)
 				if err != nil {
 					fmt.Fprintln(stderr, err)
 					*exitCode = ExitError
 					return err
 				}
-				if err := detection.SetConfidenceScoresFromStrings(flagMap); err != nil {
+				if confidenceLevels, err = detection.SetConfidenceLevelsFromStrings(
+					confidenceLevels,
+					flagMap,
+				); err != nil {
 					fmt.Fprintln(stderr, err)
 					*exitCode = ExitError
 					return err
 				}
 			}
 
-			detectors := allDetectors()
+			detectors := allDetectors(confidenceLevels)
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -192,7 +196,7 @@ Examples:
 				return err
 			}
 
-			report = filterReport(report, minConf)
+			report = filterReport(report, minConf, confidenceLevels)
 
 			switch formatFlag {
 			case "json":
@@ -224,7 +228,7 @@ Examples:
 	cmd.Flags().StringVar(&rangeFlag, "range", "", "commit range in BASE..HEAD format")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
-	cmd.Flags().StringVar(&confidenceScoresFlag, "confidence-scores", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
+	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
 }
@@ -275,7 +279,7 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors()
+			detectors := allDetectors(detection.GetDefaultConfidenceLevels())
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			switch formatFlag {
@@ -329,7 +333,11 @@ Examples:
 	}
 }
 
-func filterReport(report scan.Report, minConf detection.Confidence) scan.Report {
+func filterReport(
+	report scan.Report,
+	minConf detection.Confidence,
+	confidenceLevels map[detection.Confidence]float64,
+) scan.Report {
 	if minConf <= detection.ConfidenceLow {
 		return report
 	}
@@ -343,9 +351,6 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		},
 	}
 
-	// collect all findings to compute overall score after filtering
-	var overallScoreFindings []detection.Finding
-
 	for _, commit := range report.Commits {
 		var commitFindings []detection.Finding
 		for _, f := range commit.Findings {
@@ -355,8 +360,15 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		}
 
 		// Recompute per-commit score from the kept findings
-		commitScore, _ := detection.ConsolidateScoreByFindings(commitFindings)
-		result := scan.CommitResult{Hash: commit.Hash, Findings: commitFindings, Score: commitScore}
+		commitScore, perDetectorScores := detection.ConsolidateScoreByFindings(commitFindings)
+		confidence := detection.ScoreToConfidence(confidenceLevels, commitScore)
+		result := scan.CommitResult{
+			Hash:              commit.Hash,
+			Findings:          commitFindings,
+			Score:             commitScore,
+			Confidence:        confidence,
+			PerDetectorScores: perDetectorScores,
+		}
 		filtered.Commits = append(filtered.Commits, result)
 		if len(commitFindings) > 0 {
 			filtered.Summary.AICommits++
@@ -364,13 +376,8 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		for _, commitFinding := range commitFindings {
 			filtered.Summary.ToolCounts[commitFinding.Tool]++
 			filtered.Summary.ByConfidence[commitFinding.Confidence.String()]++
-			overallScoreFindings = append(overallScoreFindings, commitFinding)
 		}
 	}
-
-	// Compute new overall score for the filtered report.
-	overall, _ := detection.ConsolidateScoreByFindings(overallScoreFindings)
-	filtered.Summary.OverallScore = overall
 
 	return filtered
 }

@@ -17,11 +17,12 @@ import (
 )
 
 func allDetectors() []detection.Detector {
+	confidenceLevels := detection.GetDefaultConfidenceLevels()
 	return []detection.Detector{
-		&committer.Detector{},
-		&gitnotes.Detector{},
-		&trailer.Detector{},
-		&toolmention.Detector{},
+		&committer.Detector{ConfidenceLevels: confidenceLevels},
+		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
+		&trailer.Detector{ConfidenceLevels: confidenceLevels},
+		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
 	}
 }
 
@@ -160,9 +161,6 @@ func TestScanCommitRange(t *testing.T) {
 	if trailerScore != 85 {
 		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
 	}
-	if report.Summary.OverallScore != 200 {
-		t.Errorf("expected overall score to be 200, found %f", report.Summary.OverallScore)
-	}
 }
 
 func TestScanCommitRangeAll(t *testing.T) {
@@ -236,10 +234,9 @@ func TestScanCommit(t *testing.T) {
 			)
 		}
 
-		expectedConfidence, err := detection.ScoreToConfidence(f.Score)
-		if err != nil {
-			t.Fatalf("score conversion failed: %v", err)
-		}
+		expectedConfidence := detection.ScoreToConfidence(
+			detection.GetDefaultConfidenceLevels(), f.Score,
+		)
 
 		if f.Confidence != expectedConfidence {
 			t.Errorf(
@@ -286,7 +283,7 @@ func TestScanCommit(t *testing.T) {
 		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
 	}
 	if result.Score != 95 {
-		t.Errorf("expected overall score to be 95, found %f", result.Score)
+		t.Errorf("expected score to be 95, found %f", result.Score)
 	}
 }
 
@@ -437,10 +434,6 @@ func TestScanReportNoFindingsHasZeroScore(t *testing.T) {
 	report, err := ScanCommitRange(dir, hashes[0]+".."+hashes[1], nil)
 	if err != nil {
 		t.Fatalf("ScanCommitRange: %v", err)
-	}
-
-	if report.Summary.OverallScore != 0 {
-		t.Fatalf("overall score = %v, want 0", report.Summary.OverallScore)
 	}
 
 	for _, cr := range report.Commits {

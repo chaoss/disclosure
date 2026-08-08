@@ -21,10 +21,9 @@ func assertFindingMetadata(t *testing.T, finding detection.Finding, expectedScor
 		t.Errorf("score = %v, want %v", finding.Score, expectedScore)
 	}
 
-	expectedConfidence, err := detection.ScoreToConfidence(expectedScore)
-	if err != nil {
-		t.Fatalf("failed to calculate confidence: %v", err)
-	}
+	expectedConfidence := detection.ScoreToConfidence(
+		detection.GetDefaultConfidenceLevels(), expectedScore,
+	)
 
 	if finding.Confidence != expectedConfidence {
 		t.Errorf("confidence = %d, want %d", finding.Confidence, expectedConfidence)
@@ -36,7 +35,7 @@ func assertFindingMetadata(t *testing.T, finding detection.Finding, expectedScor
 }
 
 func TestDetectAllKnownEmails(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	for email, expectedName := range detection.KnownAgentCommitters {
 		input := detection.Input{CommitEmail: email}
 		findings := d.Detect(input)
@@ -52,7 +51,7 @@ func TestDetectAllKnownEmails(t *testing.T) {
 }
 
 func TestDetectMixedCase(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	cases := []struct {
 		input    string
 		wantTool string
@@ -76,7 +75,7 @@ func TestDetectMixedCase(t *testing.T) {
 }
 
 func TestDetectWhitespace(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	cases := []string{
 		"  209825114+claude[bot]@users.noreply.github.com",
 		"209825114+claude[bot]@users.noreply.github.com  ",
@@ -97,7 +96,7 @@ func TestDetectWhitespace(t *testing.T) {
 }
 
 func TestDetectNotFound(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	cases := []string{
 		"user@example.com",
 		"",
@@ -115,7 +114,7 @@ func TestDetectNotFound(t *testing.T) {
 }
 
 func TestDetectNumericPrefix(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	// Simulate a renamed bot: same numeric ID, different username
 	cases := []struct {
 		input    string
@@ -143,7 +142,7 @@ func TestDetectNumericPrefix(t *testing.T) {
 }
 
 func TestDetectNumericPrefixNoFalsePositive(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	// An email with a numeric prefix that doesn't match any known bot
 	cases := []string{
 		"999999999+someone@users.noreply.github.com",
@@ -165,7 +164,7 @@ func TestDetectAuthorAndCommitter(t *testing.T) {
 		humanEmail   = "human@example.com"
 	)
 
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	tests := []struct {
 		name        string
 		input       detection.Input

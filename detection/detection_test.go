@@ -57,7 +57,7 @@ func TestConsolidateFindings(t *testing.T) {
 	tests := []struct {
 		name               string
 		findings           []Finding
-		wantOverall        float64
+		wantTotalScore     float64
 		wantDetectorScores map[string]float64
 		wantNaN            bool
 	}{
@@ -68,7 +68,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "B", Score: 50},
 				{Detector: "C", Score: 75},
 			},
-			wantOverall: 225,
+			wantTotalScore: 225,
 			wantDetectorScores: map[string]float64{
 				"A": 100,
 				"B": 50,
@@ -82,7 +82,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "B", Score: -50},
 				{Detector: "C", Score: 75},
 			},
-			wantOverall: 125,
+			wantTotalScore: 125,
 			wantDetectorScores: map[string]float64{
 				"A": 100,
 				"B": -50,
@@ -98,7 +98,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "C", Score: 75},
 				{Detector: "B", Score: -10},
 			},
-			wantOverall: 245,
+			wantTotalScore: 245,
 			wantDetectorScores: map[string]float64{
 				"A": 120,
 				"B": 50,
@@ -108,13 +108,13 @@ func TestConsolidateFindings(t *testing.T) {
 		{
 			name:               "nil findings",
 			findings:           nil,
-			wantOverall:        0,
+			wantTotalScore:     0,
 			wantDetectorScores: map[string]float64{},
 		},
 		{
 			name:               "empty findings",
 			findings:           []Finding{},
-			wantOverall:        0,
+			wantTotalScore:     0,
 			wantDetectorScores: map[string]float64{},
 		},
 		{
@@ -124,7 +124,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "A", Score: 80},
 				{Detector: "A", Score: 50},
 			},
-			wantOverall: 80,
+			wantTotalScore: 80,
 			wantDetectorScores: map[string]float64{
 				"A": 80,
 			},
@@ -135,7 +135,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: " A ", Score: 60},
 				{Detector: "A", Score: 90},
 			},
-			wantOverall: 90,
+			wantTotalScore: 90,
 			wantDetectorScores: map[string]float64{
 				"A": 90,
 			},
@@ -146,7 +146,7 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "", Score: 10},
 				{Detector: "   ", Score: 55},
 			},
-			wantOverall: 55,
+			wantTotalScore: 55,
 			wantDetectorScores: map[string]float64{
 				"": 55,
 			},
@@ -157,23 +157,23 @@ func TestConsolidateFindings(t *testing.T) {
 				{Detector: "A", Score: math.NaN()},
 				{Detector: "B", Score: 50},
 			},
-			wantOverall: math.NaN(),
-			wantNaN:     true,
+			wantTotalScore: math.NaN(),
+			wantNaN:        true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			overall, perDetectorScores := ConsolidateScoreByFindings(tt.findings)
+			totalScore, perDetectorScores := ConsolidateScoreByFindings(tt.findings)
 
 			if tt.wantNaN {
-				if !math.IsNaN(overall) {
-					t.Fatalf("overall = %v, want NaN", overall)
+				if !math.IsNaN(totalScore) {
+					t.Fatalf("total score = %v, want NaN", totalScore)
 				}
 				return
 			}
 
-			if overall != tt.wantOverall {
-				t.Fatalf("overall = %v, want %v", overall, tt.wantOverall)
+			if totalScore != tt.wantTotalScore {
+				t.Fatalf("total score = %v, want %v", totalScore, tt.wantTotalScore)
 			}
 
 			if !reflect.DeepEqual(perDetectorScores, tt.wantDetectorScores) {
@@ -184,101 +184,77 @@ func TestConsolidateFindings(t *testing.T) {
 }
 
 func TestScoreToConfidence(t *testing.T) {
+	confidenceLevels := GetDefaultConfidenceLevels()
 	tests := []struct {
-		name    string
-		score   float64
-		want    Confidence
-		wantErr bool
+		name  string
+		score float64
+		want  Confidence
 	}{
 		{
-			name:    "zero score",
-			score:   0,
-			want:    ConfidenceLow,
-			wantErr: false,
+			name:  "zero score",
+			score: 0,
+			want:  ConfidenceLow,
 		},
 		{
-			name:    "normal low score",
-			score:   25,
-			want:    ConfidenceLow,
-			wantErr: false,
+			name:  "normal low score",
+			score: 25,
+			want:  ConfidenceLow,
 		},
 		{
-			name:    "medium boundary",
-			score:   50,
-			want:    ConfidenceMedium,
-			wantErr: false,
+			name:  "medium boundary",
+			score: 50,
+			want:  ConfidenceMedium,
 		},
 		{
-			name:    "high boundary",
-			score:   75,
-			want:    ConfidenceHigh,
-			wantErr: false,
+			name:  "high boundary",
+			score: 75,
+			want:  ConfidenceHigh,
 		},
 		{
-			name:    "maximum score",
-			score:   100,
-			want:    ConfidenceHigh,
-			wantErr: false,
+			name:  "maximum score",
+			score: 100,
+			want:  ConfidenceHigh,
 		},
 		{
-			name:    "negative score",
-			score:   -1,
-			want:    ConfidenceNone,
-			wantErr: true,
+			name:  "negative score",
+			score: -1,
+			want:  ConfidenceLow,
 		},
 		{
-			name:    "above maximum score",
-			score:   101,
-			want:    ConfidenceNone,
-			wantErr: true,
+			name:  "above maximum score",
+			score: 101,
+			want:  ConfidenceHigh,
 		},
 		{
-			name:    "positive infinity",
-			score:   math.Inf(1),
-			want:    ConfidenceNone,
-			wantErr: true,
+			name:  "positive infinity",
+			score: math.Inf(1),
+			want:  ConfidenceHigh,
 		},
 		{
-			name:    "negative infinity",
-			score:   math.Inf(-1),
-			want:    ConfidenceNone,
-			wantErr: true,
+			name:  "negative infinity",
+			score: math.Inf(-1),
+			want:  ConfidenceLow,
 		},
 		{
-			name:    "NaN score",
-			score:   math.NaN(),
-			want:    ConfidenceNone,
-			wantErr: true,
+			name:  "NaN score",
+			score: math.NaN(),
+			want:  ConfidenceNone,
 		},
 		{
-			name:    "rounding to low boundary",
-			score:   confidenceScores[ConfidenceLow] - 0.4,
-			want:    ConfidenceLow,
-			wantErr: false,
+			name:  "rounding to low boundary",
+			score: confidenceLevels[ConfidenceLow] - 0.4,
+			want:  ConfidenceLow,
 		},
 		{
-			name:    "rounding past low boundary",
-			score:   confidenceScores[ConfidenceLow] + 0.5,
-			want:    ConfidenceMedium,
-			wantErr: false,
+			name:  "rounding past low boundary",
+			score: confidenceLevels[ConfidenceLow] + 0.5,
+			want:  ConfidenceMedium,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ScoreToConfidence(tt.score)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
+			got := ScoreToConfidence(confidenceLevels, tt.score)
 			if got != tt.want {
 				t.Fatalf("confidence=%v, want %v", got, tt.want)
 			}
@@ -286,12 +262,12 @@ func TestScoreToConfidence(t *testing.T) {
 	}
 }
 
-func TestSetConfidenceScoresFromStrings(t *testing.T) {
+func TestSetConfidenceLevelsFromStrings(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   map[string]float64
 		wantErr bool
-		check   func(t *testing.T)
+		check   func(t *testing.T, confidenceLevels map[Confidence]float64)
 	}{
 		{
 			name: "full custom mapping",
@@ -301,14 +277,14 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 				"high":   90,
 			},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != 30 {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				if confidenceLevels[ConfidenceLow] != 30 {
 					t.Fatalf("low score mismatch")
 				}
-				if confidenceScores[ConfidenceMedium] != 60 {
+				if confidenceLevels[ConfidenceMedium] != 60 {
 					t.Fatalf("medium score mismatch")
 				}
-				if confidenceScores[ConfidenceHigh] != 90 {
+				if confidenceLevels[ConfidenceHigh] != 90 {
 					t.Fatalf("high score mismatch")
 				}
 			},
@@ -321,8 +297,8 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 				"HIGH":   80,
 			},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != 20 {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				if confidenceLevels[ConfidenceLow] != 20 {
 					t.Fatalf("low score mismatch")
 				}
 			},
@@ -333,8 +309,8 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 				" low ": 25,
 			},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != 25 {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				if confidenceLevels[ConfidenceLow] != 25 {
 					t.Fatalf("low score mismatch")
 				}
 			},
@@ -343,8 +319,9 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 			name:    "empty mapping uses defaults",
 			input:   map[string]float64{},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != defaultConfidenceScores[ConfidenceLow] {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				defaultConfidenceLevels := GetDefaultConfidenceLevels()
+				if confidenceLevels[ConfidenceLow] != defaultConfidenceLevels[ConfidenceLow] {
 					t.Fatalf("default low mismatch")
 				}
 			},
@@ -355,14 +332,49 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 				"low": 10,
 			},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != 10 {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				defaultConfidenceLevels := GetDefaultConfidenceLevels()
+				if confidenceLevels[ConfidenceLow] != 10 {
 					t.Fatalf("custom low missing")
 				}
-				if confidenceScores[ConfidenceHigh] != defaultConfidenceScores[ConfidenceHigh] {
+				if confidenceLevels[ConfidenceHigh] != defaultConfidenceLevels[ConfidenceHigh] {
 					t.Fatalf("high should use default")
 				}
 			},
+		},
+		{
+			name: "all levels must be in ascending order",
+			input: map[string]float64{
+				"low":    40,
+				"medium": 30,
+				"high":   90,
+			},
+			wantErr: true,
+		},
+		{
+			name: "levels must be in ascending order even with defaults",
+			input: map[string]float64{
+				"high": 30,
+			},
+			wantErr: true,
+		},
+		{
+			name: "levels cannot be equal when defaults are used",
+			input: map[string]float64{
+				"low":    70,
+				"medium": 70,
+				"high":   100,
+			},
+			wantErr: true,
+		},
+		{
+			name: "levels cannot be equal even when defaults are used",
+			input: map[string]float64{
+				"low": 70,
+				// medium defaults to 70
+				"high": 100,
+			},
+			wantErr: true,
 		},
 		{
 			name: "unsupported key",
@@ -385,8 +397,8 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 				"low": -10,
 			},
 			wantErr: false,
-			check: func(t *testing.T) {
-				if confidenceScores[ConfidenceLow] != -10 {
+			check: func(t *testing.T, confidenceLevels map[Confidence]float64) {
+				if confidenceLevels[ConfidenceLow] != -10 {
 					t.Fatalf("expected negative threshold to be accepted")
 				}
 			},
@@ -395,8 +407,8 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := SetConfidenceScoresFromStrings(tt.input)
-
+			confidenceLevels := GetDefaultConfidenceLevels()
+			confidenceLevels, err := SetConfidenceLevelsFromStrings(confidenceLevels, tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
@@ -409,7 +421,7 @@ func TestSetConfidenceScoresFromStrings(t *testing.T) {
 			}
 
 			if tt.check != nil {
-				tt.check(t)
+				tt.check(t, confidenceLevels)
 			}
 		})
 	}

@@ -257,16 +257,18 @@ func TestRunScanInvalidFormat(t *testing.T) {
 
 func TestFilterReport(t *testing.T) {
 	tests := []struct {
-		name          string
-		report        scan.Report
-		minConf       detection.Confidence
-		wantScore     float64
-		wantAICommits int
-		wantFindings  int
-		wantTool      string // optional
+		name                  string
+		report                scan.Report
+		minConf               detection.Confidence
+		wantAICommits         int
+		wantFindings          []int
+		wantPerDetectorScores []map[string]float64
+		wantScores            []float64
+		wantConfidence        detection.Confidence
+		wantTool              string // optional
 	}{
 		{
-			name: "keep only high confidence findings",
+			name: "keep low confidence and above findings",
 			report: scan.Report{
 				Commits: []scan.CommitResult{
 					{
@@ -275,8 +277,14 @@ func TestFilterReport(t *testing.T) {
 							{
 								Detector:   "toolmention",
 								Tool:       "Claude",
-								Confidence: detection.ConfidenceLow,
+								Confidence: detection.ConfidenceMedium,
 								Score:      20,
+							},
+							{
+								Detector:   "trailer",
+								Tool:       "Kimi K3",
+								Confidence: detection.ConfidenceHigh,
+								Score:      85,
 							},
 							{
 								Detector:   "trailer",
@@ -292,32 +300,28 @@ func TestFilterReport(t *testing.T) {
 							{
 								Detector:   "toolmention",
 								Tool:       "Claude",
-								Confidence: detection.ConfidenceLow,
+								Confidence: detection.ConfidenceMedium,
 								Score:      20,
 							},
 							{
 								Detector:   "trailer",
 								Tool:       "Claude Code",
 								Confidence: detection.ConfidenceHigh,
-								Score:      100,
+								Score:      105,
 							},
 						},
 					},
 				},
-				Summary: scan.Summary{
-					TotalCommits:      2,
-					AICommits:         2,
-					ToolCounts:        map[string]int{"Claude": 2, "Claude Code": 2},
-					ByConfidence:      map[string]int{"low": 2, "high": 2},
-					PerDetectorScores: map[string]float64{"toolmention": 20, "trailer": 100},
-					OverallScore:      120,
-				},
 			},
-			minConf:       detection.ConfidenceHigh,
-			wantScore:     100,
+			minConf:       detection.ConfidenceMedium,
 			wantAICommits: 2,
-			wantFindings:  2, // only high confidence ones from both commits
-			wantTool:      "Claude Code",
+			wantFindings:  []int{3, 2},
+			wantTool:      "Claude",
+			wantPerDetectorScores: []map[string]float64{
+				{"toolmention": 20, "trailer": 100},
+				{"toolmention": 20, "trailer": 105},
+			},
+			wantScores: []float64{120, 125},
 		},
 		{
 			name: "all findings filtered out",
@@ -334,14 +338,11 @@ func TestFilterReport(t *testing.T) {
 						},
 					},
 				},
-				Summary: scan.Summary{
-					TotalCommits: 1,
-				},
 			},
 			minConf:       detection.ConfidenceHigh,
-			wantScore:     0,
 			wantAICommits: 0,
-			wantFindings:  0,
+			wantFindings:  []int{0},
+			wantScores:    []float64{0},
 		},
 		{
 			name: "empty findings",
@@ -354,17 +355,17 @@ func TestFilterReport(t *testing.T) {
 				},
 			},
 			minConf:       detection.ConfidenceMedium,
-			wantScore:     0,
 			wantAICommits: 0,
-			wantFindings:  0,
+			wantFindings:  []int{0},
+			wantScores:    []float64{0},
 		},
 		{
 			name:          "no commits",
 			report:        scan.Report{},
 			minConf:       detection.ConfidenceHigh,
-			wantScore:     0,
 			wantAICommits: 0,
-			wantFindings:  0,
+			wantFindings:  []int{},
+			wantScores:    []float64{},
 		},
 		{
 			name: "low confidence threshold returns original report",
@@ -381,45 +382,78 @@ func TestFilterReport(t *testing.T) {
 							{
 								Detector:   "trailer",
 								Confidence: detection.ConfidenceHigh,
-								Score:      100,
+								Score:      80,
 							},
 						},
+						Score:      100,
+						Confidence: detection.ConfidenceHigh,
 					},
 				},
 			},
 			minConf:      detection.ConfidenceLow,
-			wantFindings: 2,
-			wantScore:    120,
+			wantFindings: []int{2},
+			wantScores:   []float64{100},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filtered := filterReport(tt.report, tt.minConf)
+			filtered := filterReport(tt.report, tt.minConf, detection.GetDefaultConfidenceLevels())
 
-			if tt.minConf == detection.ConfidenceLow {
-				if got := len(filtered.Commits[0].Findings); got != tt.wantFindings {
-					t.Fatalf("findings=%d want=%d", got, tt.wantFindings)
+			if tt.wantFindings != nil {
+				lenCommit := len(filtered.Commits)
+				lenWant := len(tt.wantFindings)
+				if lenCommit != lenWant {
+					t.Fatalf("invalid number of items to check, commit len=%d want len=%d", lenCommit, lenWant)
 				}
-				return
+				for i := range filtered.Commits {
+					if len(filtered.Commits[i].Findings) != tt.wantFindings[i] {
+						t.Fatalf("commit findings len=%d want findings=%d", lenCommit, lenWant)
+					}
+				}
 			}
 
-			if filtered.Summary.OverallScore != tt.wantScore {
-				t.Errorf("overall score=%v want=%v",
-					filtered.Summary.OverallScore, tt.wantScore)
+			if tt.wantScores != nil {
+				lenCommit := len(filtered.Commits)
+				lenWant := len(tt.wantScores)
+				if lenCommit != lenWant {
+					t.Fatalf("invalid number of items to check, commit len=%d want len=%d", lenCommit, lenWant)
+				}
+				for i := range filtered.Commits {
+					if filtered.Commits[i].Score != tt.wantScores[i] {
+						t.Fatalf("commit score=%f want score=%f", filtered.Commits[i].Score, tt.wantScores[i])
+					}
+				}
 			}
 
 			if filtered.Summary.AICommits != tt.wantAICommits {
-				t.Errorf("AICommits=%d want=%d",
-					filtered.Summary.AICommits, tt.wantAICommits)
+				t.Errorf("AICommits=%d want=%d", filtered.Summary.AICommits, tt.wantAICommits)
 			}
 
 			gotFindings := 0
-			for _, c := range filtered.Commits {
-				gotFindings += len(c.Findings)
-			}
-			if gotFindings != tt.wantFindings {
-				t.Errorf("findings=%d want=%d", gotFindings, tt.wantFindings)
+			for i, commit := range filtered.Commits {
+				gotFindings += len(commit.Findings)
+
+				// compare per-detector scores for each commit
+				if tt.wantPerDetectorScores == nil {
+					continue
+				}
+				wantPerDetectorScores := tt.wantPerDetectorScores[i]
+				lenCommitScores := len(commit.PerDetectorScores)
+				lenWantScores := len(wantPerDetectorScores)
+				if lenCommitScores != lenWantScores {
+					t.Errorf("expected %d detectors in map but found=%d", lenWantScores, lenCommitScores)
+				}
+				for detector := range commit.PerDetectorScores {
+					if wantPerDetectorScores[detector] != commit.PerDetectorScores[detector] {
+						t.Errorf(
+							"expected %f, found %f for detector %q",
+							wantPerDetectorScores[detector],
+							commit.PerDetectorScores[detector],
+							detector,
+						)
+					}
+				}
 			}
 
 			if tt.wantTool != "" {
@@ -648,17 +682,17 @@ func TestRunScanFlags(t *testing.T) {
 		},
 		{
 			name:     "invalid confidence scores format",
-			args:     []string{"scan", "--confidence-scores=low", dir},
+			args:     []string{"scan", "--confidence-levels=low", dir},
 			wantCode: ExitError,
 		},
 		{
 			name:     "reject NaN confidence score",
-			args:     []string{"scan", "--confidence-scores=high=NaN", dir},
+			args:     []string{"scan", "--confidence-levels=high=NaN", dir},
 			wantCode: ExitError,
 		},
 		{
 			name:     "both valid flags",
-			args:     []string{"scan", "--confidence-scores=low=15,medium=55,high=95", dir},
+			args:     []string{"scan", "--confidence-levels=low=15,medium=55,high=95", dir},
 			wantCode: ExitAI, // or ExitNoAI
 		},
 	}
@@ -700,7 +734,7 @@ func TestRunScanScoreFlags(t *testing.T) {
 			args: []string{
 				"scan",
 				"--format=json",
-				"--confidence-scores=low=10,medium=50,high=90",
+				"--confidence-levels=low=10,medium=50,high=90",
 				dir,
 			},
 		},
@@ -724,14 +758,6 @@ func TestRunScanScoreFlags(t *testing.T) {
 			for _, c := range report.Commits {
 				findings = append(findings, c.Findings...)
 			}
-
-			expected, _ := detection.ConsolidateScoreByFindings(findings)
-
-			if report.Summary.OverallScore != expected {
-				t.Fatalf("overall=%v want=%v",
-					report.Summary.OverallScore,
-					expected)
-			}
 		})
 	}
 }
@@ -743,31 +769,31 @@ func TestScanCommandInvalidFlags(t *testing.T) {
 	}{
 		{
 			name: "confidence missing equals",
-			args: []string{"--confidence-scores", "low"},
+			args: []string{"--confidence-levels", "low"},
 		},
 		{
 			name: "confidence empty key",
-			args: []string{"--confidence-scores", "=10"},
+			args: []string{"--confidence-levels", "=10"},
 		},
 		{
 			name: "confidence empty value",
-			args: []string{"--confidence-scores", "low="},
+			args: []string{"--confidence-levels", "low="},
 		},
 		{
 			name: "confidence invalid number",
-			args: []string{"--confidence-scores", "low=abc"},
+			args: []string{"--confidence-levels", "low=abc"},
 		},
 		{
 			name: "confidence NaN",
-			args: []string{"--confidence-scores", "high=NaN"},
+			args: []string{"--confidence-levels", "high=NaN"},
 		},
 		{
 			name: "confidence Inf",
-			args: []string{"--confidence-scores", "high=Inf"},
+			args: []string{"--confidence-levels", "high=Inf"},
 		},
 		{
 			name: "confidence -Inf",
-			args: []string{"--confidence-scores", "high=-Inf"},
+			args: []string{"--confidence-levels", "high=-Inf"},
 		},
 	}
 

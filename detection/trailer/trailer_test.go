@@ -7,7 +7,7 @@ import (
 )
 
 func TestDetect(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	tests := []struct {
 		name           string
 		message        string
@@ -568,7 +568,7 @@ Signed-off-by: some human <test@example.com>
 }
 
 func BenchmarkDetect(b *testing.B) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	tests := []struct {
 		name    string
 		message string

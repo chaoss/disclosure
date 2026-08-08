@@ -7,7 +7,7 @@ import (
 )
 
 func TestDetect(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 
 	tests := []struct {
 		name      string
@@ -260,10 +260,7 @@ func TestDetect(t *testing.T) {
 			}
 
 			expectedScore := detection.ToolMentionBaseScore
-			expectedConfidence, err := detection.ScoreToConfidence(expectedScore)
-			if err != nil {
-				t.Fatalf("failed to calculate confidence: %v", err)
-			}
+			expectedConfidence := detection.ScoreToConfidence(d.ConfidenceLevels, expectedScore)
 
 			for i, f := range findings {
 				if f.Tool != tt.wantTools[i] {

@@ -7,10 +7,11 @@ import (
 
 // CommitResult holds findings for a single commit.
 type CommitResult struct {
-	Hash              string              `json:"hash"`
-	Findings          []detection.Finding `json:"findings"`
-	PerDetectorScores map[string]float64  `json:"per_detector_scores"`
-	Score             float64             `json:"score"`
+	Hash              string               `json:"hash"`
+	Findings          []detection.Finding  `json:"findings"`
+	PerDetectorScores map[string]float64   `json:"per_detector_scores"`
+	Score             float64              `json:"score"`
+	Confidence        detection.Confidence `json:"confidence"`
 }
 
 // Summary aggregates stats across all commits scanned.
@@ -20,7 +21,6 @@ type Summary struct {
 	ToolCounts        map[string]int     `json:"tool_counts"`
 	ByConfidence      map[string]int     `json:"by_confidence"`
 	PerDetectorScores map[string]float64 `json:"per_detector_scores"`
-	OverallScore      float64            `json:"overall_score"`
 }
 
 // Report holds the full scan results.
@@ -85,13 +85,25 @@ func scanOneCommit(c gitops.Commit, branchName string, detectors []detection.Det
 		findings = append(findings, d.Detect(input)...)
 	}
 
-	score, perDetectorScores := detection.ConsolidateScoreByFindings(findings)
+	if len(detectors) == 0 {
+		return CommitResult{
+			Hash:              c.Hash,
+			Findings:          findings,
+			PerDetectorScores: nil,
+			Score:             0.0,
+			Confidence:        detection.ConfidenceNone,
+		}
+	}
 
+	confidenceLevels := detectors[0].GetConfidenceLevels()
+	score, perDetectorScores := detection.ConsolidateScoreByFindings(findings)
+	confidence := detection.ScoreToConfidence(confidenceLevels, score)
 	return CommitResult{
 		Hash:              c.Hash,
 		Findings:          findings,
 		PerDetectorScores: perDetectorScores,
 		Score:             score,
+		Confidence:        confidence,
 	}
 }
 
@@ -114,9 +126,8 @@ func buildReport(results []CommitResult) Report {
 		}
 	}
 
-	overall, perDetectorScores := detection.ConsolidateScoreByFindings(allFindings)
+	_, perDetectorScores := detection.ConsolidateScoreByFindings(allFindings)
 	summary.PerDetectorScores = perDetectorScores
-	summary.OverallScore = overall
 
 	return Report{
 		Commits: results,

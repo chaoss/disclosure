@@ -20,19 +20,19 @@ func init() {
 	}
 }
 
-type Detector struct{}
+type Detector struct {
+	ConfidenceLevels map[detection.Confidence]float64
+}
 
 func (d *Detector) Name() string { return "committer" }
 
-func (d *Detector) detectEmail(email, identityField string) []detection.Finding {
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
+func (d *Detector) detectEmail(email, identityField string) []detection.Finding {
 	// Direct match against known emails
 	if name, ok := detection.KnownAgentCommitters[email]; ok {
 		score := detection.CommitterMatchBaseScore + detection.CommitterKnownEmailBonusPoints
-		confidence, err := detection.ScoreToConfidence(score)
-		if err != nil {
-			confidence = detection.ConfidenceNone
-		}
+		confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 		return []detection.Finding{{
 			Detector:   d.Name(),
 			Tool:       name,
@@ -46,10 +46,7 @@ func (d *Detector) detectEmail(email, identityField string) []detection.Finding 
 	// Format: <numeric-id>+<username>@users.noreply.github.com
 	if strings.HasSuffix(email, detection.GithubNoReplyEmailSuffix) {
 		score := detection.CommitterMatchBaseScore + detection.CommitterEmailSuffixBonusPoints
-		confidence, err := detection.ScoreToConfidence(score)
-		if err != nil {
-			confidence = detection.ConfidenceNone
-		}
+		confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 		if idx := strings.Index(email, "+"); idx > 0 {
 			prefix := email[:idx]
 			if name, ok := numericPrefixIndex[prefix]; ok {

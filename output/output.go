@@ -21,11 +21,6 @@ func FormatJSON(w io.Writer, report scan.Report) error {
 func FormatText(w io.Writer, report scan.Report) error {
 	fmt.Fprintf(w, "Scanned %d commits, %d with AI signals\n\n", report.Summary.TotalCommits, report.Summary.AICommits)
 
-	// overall numeric score
-	if report.Summary.OverallScore > 0 {
-		fmt.Fprintf(w, "Overall score: %.1f / 100\n\n", report.Summary.OverallScore)
-	}
-
 	if report.Summary.AICommits == 0 {
 		fmt.Fprintln(w, "No AI involvement detected.")
 		return nil
@@ -48,13 +43,12 @@ func FormatText(w io.Writer, report scan.Report) error {
 		if len(hash) > 12 {
 			hash = hash[:12]
 		}
-		if cr.Score > 0 {
-			fmt.Fprintf(w, "Commit %s (score: %.1f)\n", hash, cr.Score)
-		} else {
-			fmt.Fprintf(w, "Commit %s\n", hash)
-		}
+		fmt.Fprintf(w, "Commit %s (score: %.1f, confidence: %s)\n", hash, cr.Score, cr.Confidence.String())
 		for _, f := range cr.Findings {
-			fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
+			fmt.Fprintf(
+				w, "  [score: %.1f, confidence: %s] %s (%s): %s\n",
+				f.Score, f.Confidence, f.DisplayTool(), f.Detector, f.Detail,
+			)
 		}
 	}
 
@@ -69,12 +63,17 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 	}
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
-	// compute consolidated score for these findings
-	overall, _ := detection.ConsolidateScoreByFindings(findings)
-	fmt.Fprintf(w, "Overall score: %.1f / 100\n", overall)
+
+	// compute consolidated score and confidence for these findings
+	score, _ := detection.ConsolidateScoreByFindings(findings)
+	confidence := detection.ScoreToConfidence(detection.GetDefaultConfidenceLevels(), score)
+	fmt.Fprintf(w, "Score: %.1f, Confidence: %s\n", score, confidence.String())
 
 	for _, f := range findings {
-		fmt.Fprintf(w, "  [%s] %s (%s): %s\n", f.Confidence, f.DisplayTool(), f.Detector, f.Detail)
+		fmt.Fprintf(
+			w, "  [score: %.1f, confidence: %s] %s (%s): %s\n",
+			f.Score, f.Confidence.String(), f.DisplayTool(), f.Detector, f.Detail,
+		)
 	}
 	return nil
 }
@@ -83,12 +82,16 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 func FormatJSONFindings(w io.Writer, findings []detection.Finding) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	score, _ := detection.ConsolidateScoreByFindings(findings)
+	confidence := detection.ScoreToConfidence(detection.GetDefaultConfidenceLevels(), score)
 	return enc.Encode(struct {
-		Findings     []detection.Finding `json:"findings"`
-		OverallScore float64             `json:"overall_score"`
+		Findings   []detection.Finding  `json:"findings"`
+		Score      float64              `json:"score"`
+		Confidence detection.Confidence `json:"confidence"`
 	}{
-		Findings:     findings,
-		OverallScore: func() float64 { s, _ := detection.ConsolidateScoreByFindings(findings); return s }(),
+		Findings:   findings,
+		Score:      score,
+		Confidence: confidence,
 	})
 }
 
