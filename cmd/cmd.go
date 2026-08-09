@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
 	"github.com/chaoss/disclosure/detection/toolmention"
@@ -35,6 +36,7 @@ func allDetectors() []detection.Detector {
 		&gitnotes.Detector{},
 		&trailer.Detector{},
 		&toolmention.Detector{},
+		&branchname.Detector{},
 	}
 }
 
@@ -94,6 +96,7 @@ Checks each commit for:
   - AI session ID trailers
   - Commit message patterns (aider:, Generated with Claude Code, etc.)
   - Tool name mentions in commit messages
+  - Branch naming conventions used by AI CLIs (codex/, claude/, cursor/, etc.)
 
 Examples:
   disclosure scan

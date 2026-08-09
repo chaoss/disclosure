@@ -80,6 +80,27 @@ func ListCommits(repoPath string, commitRange string) ([]Commit, error) {
 	return listCommitRange(repo, baseHash, headHash)
 }
 
+// GetCurrentBranch returns the short name of the branch currently checked out
+// in the repository at repoPath (e.g. "codex/fix-bug"). Returns an empty
+// string, with no error, when HEAD is detached (not pointing at a branch).
+func GetCurrentBranch(repoPath string) (string, error) {
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("opening repo: %w", err)
+	}
+
+	head, err := repo.Reference(plumbing.HEAD, false)
+	if err != nil {
+		return "", fmt.Errorf("reading HEAD: %w", err)
+	}
+
+	if head.Type() != plumbing.SymbolicReference {
+		return "", nil
+	}
+
+	return head.Target().Short(), nil
+}
+
 func resolveRef(repo *git.Repository, name string) (plumbing.Hash, error) {
 	// Try as a full hash first
 	if plumbing.IsHash(name) {

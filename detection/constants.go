@@ -130,6 +130,19 @@ var SupportedToolsInMentions = []string{
 	"CodeWhisperer",
 }
 
+// KnownAgentBranchPrefixes maps branch name prefixes used by AI coding CLIs/agents
+// when they create their own branches (e.g. "codex/fix-bug") to tool names.
+var KnownAgentBranchPrefixes = map[string]string{
+	"codex/":   "OpenAI Codex",
+	"claude/":  "Claude",
+	"copilot/": "GitHub Copilot",
+	"cursor/":  "Cursor",
+	"devin/":   "Devin",
+	"cline/":   "Cline",
+	"aider/":   "Aider",
+	"gemini/":  "Gemini",
+}
+
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers
 var KnownCoAuthorEmails = map[string]string{
 	"noreply@anthropic.com":  "Claude Code",
