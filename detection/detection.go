@@ -19,6 +19,8 @@ const (
 
 func (c Confidence) String() string {
 	switch c {
+	case ConfidenceNone:
+		return "none"
 	case ConfidenceLow:
 		return "low"
 	case ConfidenceMedium:
