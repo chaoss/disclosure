@@ -177,6 +177,13 @@ cmd/                    CLI subcommands
 action/                 GitHub Action (composite action + labeling)
 ```
 
+## Related projects
+
+Other tools working on AI disclosure and attribution:
+
+- [aittributor](https://github.com/block/aittributor) -- AI attribution tooling.
+- [usagescale](https://usagescale.org/) -- a scale for describing AI usage in contributions.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
