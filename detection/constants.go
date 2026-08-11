@@ -203,10 +203,13 @@ const (
 	ToolMentionBaseScore float64 = 20.0
 
 	// Committer detector
-	CommitterMatchBaseScore         float64 = 75
-	CommitterKnownEmailBonusPoints  float64 = 20
-	CommitterEmailSuffixBonusPoints float64 = 10
+	CommitterMatchBaseScore         float64 = 75.0
+	CommitterKnownEmailBonusPoints  float64 = 20.0
+	CommitterEmailSuffixBonusPoints float64 = 10.0
 
 	// Gitnotes detector
-	GitNotesMatchBaseScore float64 = 75
+	GitNotesMatchBaseScore float64 = 75.0
+
+	// Branch name detector
+	BranchNameBaseScore float64 = 75.0
 )

@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/gitnotes"
 	"github.com/chaoss/disclosure/detection/toolmention"
 	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -23,11 +25,13 @@ func allDetectors() []detection.Detector {
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
 		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
+		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
 }
 
 func initTestRepo(t *testing.T) (string, []string) {
 	t.Helper()
+
 	const humanEmail = "human@example.com"
 
 	dir := t.TempDir()
@@ -98,6 +102,14 @@ Assisted-by: Gemini (documentation)
 		hashes = append(hashes, hash.String())
 	}
 
+	const branchName = "codex/fix-test"
+	if err := wt.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewBranchReferenceName(branchName),
+		Create: true,
+	}); err != nil {
+		t.Fatalf("create branch %s: %v", branchName, err)
+	}
+
 	return dir, hashes
 }
 
@@ -161,6 +173,10 @@ func TestScanCommitRange(t *testing.T) {
 	if trailerScore != 85 {
 		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
 	}
+	branchnameScore := perDetectorScores["branchname"]
+	if branchnameScore != 75 {
+		t.Errorf("expected branchname score to be 75, found %f", branchnameScore)
+	}
 }
 
 func TestScanCommitRangeAll(t *testing.T) {
@@ -189,6 +205,7 @@ func TestScanCommitDetectsAcrossDetectors(t *testing.T) {
 		(&committer.Detector{}).Name():   "GitHub Copilot (agent)",
 		(&trailer.Detector{}).Name():     "Kimi K2.6",
 		(&toolmention.Detector{}).Name(): "Kimi",
+		(&branchname.Detector{}).Name():  "OpenAI Codex",
 	}
 	if len(result.Findings) != len(wantToolsByDetector) {
 		t.Fatalf("got %d findings, want %d", len(result.Findings), len(wantToolsByDetector))
@@ -280,10 +297,14 @@ func TestScanCommit(t *testing.T) {
 	}
 	trailerScore := perDetectorScores["trailer"]
 	if trailerScore != 75 {
-		t.Errorf("expected trailer score to be 85, found %f", trailerScore)
+		t.Errorf("expected trailer score to be 75, found %f", trailerScore)
 	}
-	if result.Score != 95 {
-		t.Errorf("expected score to be 95, found %f", result.Score)
+	branchnameScore := perDetectorScores["branchname"]
+	if branchnameScore != 75 {
+		t.Errorf("expected branchname score to be 75, found %f", branchnameScore)
+	}
+	if result.Score != 170 {
+		t.Errorf("expected overall score to be 170, found %f", result.Score)
 	}
 }
 

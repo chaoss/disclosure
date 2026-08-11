@@ -9,14 +9,24 @@ import (
 	"github.com/chaoss/disclosure/detection"
 )
 
-type Detector struct{}
+type Detector struct {
+	ConfidenceLevels map[detection.Confidence]float64
+}
 
 func (d *Detector) Name() string { return "branchname" }
+
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
 	branch, err := input.GetBranchName()
 	if err != nil {
 		return nil
+	}
+
+	score := detection.BranchNameBaseScore
+	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
+	if err != nil {
+		confidence = detection.ConfidenceNone
 	}
 
 	lower := strings.ToLower(branch)
@@ -25,7 +35,8 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 			return []detection.Finding{{
 				Detector:   d.Name(),
 				Tool:       tool,
-				Confidence: detection.ConfidenceMedium,
+				Score:      score,
+				Confidence: confidence,
 				Detail:     fmt.Sprintf("branch name %q matches %s convention", branch, tool),
 			}}
 		}
