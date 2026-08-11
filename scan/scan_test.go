@@ -24,6 +24,7 @@ func allDetectors() []detection.Detector {
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
+		// default checkbox labels used for toolmention since we didn't specify
 		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}

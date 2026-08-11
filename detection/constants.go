@@ -25,6 +25,10 @@ var KnownAgentCommitters = map[string]string{
 // GithubNoReplyEmailSuffix GitHub noreply emails suffix to check committer emails.
 var GithubNoReplyEmailSuffix = "@users.noreply.github.com"
 
+// Default checkbox labels
+var CheckboxAIUsedLabel = "This contribution was assisted or created by Generative AI tools."
+var CheckboxAINotUsedLabel = "This contribution was NOT assisted or created by Generative AI tools."
+
 // SupportedToolsInMentions List of all supported tools to detect in tool mentions within commits.
 var SupportedToolsInMentions = []string{
 	"Claude Code",
@@ -200,7 +204,8 @@ const (
 	SessionIDBonusPoints          float64 = 45.0
 
 	// Tool mention detector
-	ToolMentionBaseScore float64 = 20.0
+	ToolMentionBaseScore    float64 = 20.0
+	CheckboxAIUsedBaseScore float64 = 75.0
 
 	// Committer detector
 	CommitterMatchBaseScore         float64 = 75.0

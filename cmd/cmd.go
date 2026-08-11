@@ -32,12 +32,21 @@ const (
 	ExitError = 2
 )
 
-func allDetectors(confidenceLevels map[detection.Confidence]float64) []detection.Detector {
+type detectorConfig struct {
+	checkboxAIUsedLabel    string
+	checkboxAINotUsedLabel string
+}
+
+func allDetectors(confidenceLevels map[detection.Confidence]float64, config detectorConfig) []detection.Detector {
+	toolmentionDetector := &toolmention.Detector{}
+	toolmentionDetector.SetConfidenceLevels(confidenceLevels)
+	toolmentionDetector.SetCheckboxAILabels(config.checkboxAIUsedLabel, config.checkboxAINotUsedLabel)
+
 	return []detection.Detector{
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
-		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
+		toolmentionDetector,
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
 }
@@ -188,7 +197,7 @@ Examples:
 				}
 			}
 
-			detectors := allDetectors(confidenceLevels)
+			detectors := allDetectors(confidenceLevels, detectorConfig{})
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -236,6 +245,8 @@ Examples:
 func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var inputFlag string
+	var checkboxAIUsedLabel string
+	var checkboxAINotUsedLabel string
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -263,7 +274,14 @@ Examples:
   cat comment.txt | disclosure text --min-confidence=medium
 
   # Use in a pipeline
-  disclosure text --input=review.txt --format=json | jq '.findings'`,
+  disclosure text --input=review.txt --format=json | jq '.findings'
+
+  # Use checkbox labels
+  disclosure text \
+	--checkbox-ai-used-label="AI was used in this PR" \
+	--checkbox-ai-not-used-label="AI was not used in this PR" \
+	--input=pr-body.txt
+  `,
 		RunE: func(_ *cobra.Command, args []string) error {
 			var textBytes []byte
 			var err error
@@ -279,7 +297,10 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors(detection.GetDefaultConfidenceLevels())
+			detectors := allDetectors(detection.GetDefaultConfidenceLevels(), detectorConfig{
+				checkboxAIUsedLabel:    checkboxAIUsedLabel,
+				checkboxAINotUsedLabel: checkboxAINotUsedLabel,
+			})
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			switch formatFlag {
@@ -309,6 +330,8 @@ Examples:
 		},
 	}
 
+	cmd.Flags().StringVar(&checkboxAIUsedLabel, "check-label-ai-used", "", "string label for checkbox for AI use declaration")
+	cmd.Flags().StringVar(&checkboxAINotUsedLabel, "check-label-ai-not-used", "", "string label for checkbox for no AI use declaration")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
 
