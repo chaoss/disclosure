@@ -25,10 +25,6 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 
 	score := detection.BranchNameBaseScore
 	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
-	if err != nil {
-		confidence = detection.ConfidenceNone
-	}
-
 	lower := strings.ToLower(branch)
 	for prefix, tool := range detection.KnownAgentBranchPrefixes {
 		if strings.HasPrefix(lower, prefix) {
