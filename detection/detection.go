@@ -71,6 +71,9 @@ func GetDefaultConfidenceLevels() map[Confidence]float64 {
 }
 
 func ScoreToConfidence(confidenceLevels map[Confidence]float64, score float64) Confidence {
+	if score == 0 {
+		return ConfidenceNone
+	}
 	if score >= confidenceLevels[ConfidenceHigh] {
 		return ConfidenceHigh
 	}

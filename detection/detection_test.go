@@ -193,7 +193,7 @@ func TestScoreToConfidence(t *testing.T) {
 		{
 			name:  "zero score",
 			score: 0,
-			want:  ConfidenceLow,
+			want:  ConfidenceNone,
 		},
 		{
 			name:  "normal low score",
