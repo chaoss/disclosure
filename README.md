@@ -18,6 +18,7 @@ The built-in detectors run against each commit, each producing findings at a con
 - `aider:` prefix (Aider's default commit format).
 - `Generated with Claude Code` footer.
 - Known commit trailers in formats unique to specific tools (such as EntireIO, Replit Agent/Assistant) that can contain values indicative of AI use.
+- Branch names following conventions used by AI coding CLIs/agents (e.g. `codex/`, `claude/`, `cursor/`, `copilot/`, `devin/`, `cline/`, `aider/`, `gemini/`).
 
 
 **Low confidence** -- mentions of AI tool names in text:
@@ -104,6 +105,7 @@ import (
 	"fmt"
 
 	"github.com/chaoss/disclosure/detection"
+	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/committer"
 	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/chaoss/disclosure/detection/toolmention"
@@ -115,6 +117,7 @@ func main() {
 		&committer.Detector{},
 		&toolmention.Detector{},
 		&trailer.Detector{},
+		&branchname.Detector{},
 	}
 
 	report, err := scan.ScanCommitRange("/path/to/repo", "base..head", detectors)
@@ -166,6 +169,7 @@ go test ./...
 
 ```
 detection/              Core types: Detector interface, Finding, Confidence, Input
+detection/branchname/   AI CLI/agent branch naming conventions (codex/, claude/, etc.)
 detection/committer/    Known AI bot committer emails
 detection/gitnotes/     git-ai authorship logs from refs/notes/ai
 detection/toolmention/  AI tool name mentions in text

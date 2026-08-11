@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
@@ -135,6 +136,66 @@ func TestListCommitsInvalidRange(t *testing.T) {
 
 func TestListCommitsInvalidRepo(t *testing.T) {
 	_, err := ListCommits(t.TempDir(), "")
+	if err == nil {
+		t.Error("expected error for non-repo directory")
+	}
+}
+
+func TestGetCurrentBranch(t *testing.T) {
+	dir, _ := initTestRepo(t)
+
+	repo, err := git.PlainOpen(dir)
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("worktree: %v", err)
+	}
+	if err := wt.Checkout(&git.CheckoutOptions{
+		Branch: "refs/heads/codex/fix-bug",
+		Create: true,
+	}); err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	branch, err := GetCurrentBranch(dir)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch: unexpected error: %v", err)
+	}
+	if branch != "codex/fix-bug" {
+		t.Errorf("GetCurrentBranch: got %q, want %q", branch, "codex/fix-bug")
+	}
+}
+
+func TestGetCurrentBranchDetachedHead(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	repo, err := git.PlainOpen(dir)
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	wt, err := repo.Worktree()
+	if err != nil {
+		t.Fatalf("worktree: %v", err)
+	}
+	if err := wt.Checkout(&git.CheckoutOptions{
+		Hash: plumbing.NewHash(hashes[0]),
+	}); err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	branch, err := GetCurrentBranch(dir)
+	if err != nil {
+		t.Fatalf("GetCurrentBranch: unexpected error: %v", err)
+	}
+	if branch != "" {
+		t.Errorf("GetCurrentBranch: got %q, want empty string for detached HEAD", branch)
+	}
+}
+
+func TestGetCurrentBranchInvalidRepo(t *testing.T) {
+	_, err := GetCurrentBranch(t.TempDir())
 	if err == nil {
 		t.Error("expected error for non-repo directory")
 	}

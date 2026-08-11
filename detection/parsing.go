@@ -30,6 +30,7 @@ var (
 	fieldAuthorEmail   = "author_email"
 	fieldCommitEmail   = "commit_email"
 	fieldCommitMessage = "commit_message"
+	fieldBranchName    = "branch_name"
 )
 
 func getCommitField(value string, field string) (string, error) {
@@ -44,6 +45,9 @@ func getCommitField(value string, field string) (string, error) {
 		return strings.ToLower(value), nil
 
 	case fieldCommitMessage:
+		return value, nil
+
+	case fieldBranchName:
 		return value, nil
 
 	default:

@@ -70,6 +70,11 @@ type Input struct {
 	Notes         string // Content from refs/notes/ai, if any
 	Text          string // For text-only scans (PR body, comments)
 	RepoPath      string
+	BranchName    string // Name of the branch the commit/PR is on, if known.
+}
+
+func (input *Input) GetBranchName() (string, error) {
+	return getCommitField(input.BranchName, fieldBranchName)
 }
 
 func (input *Input) GetAuthorEmail() (string, error) {

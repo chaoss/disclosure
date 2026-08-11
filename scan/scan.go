@@ -32,9 +32,13 @@ func ScanCommitRange(repoPath, commitRange string, detectors []detection.Detecto
 		return Report{}, err
 	}
 
+	// Best-effort: an empty branch name (e.g. detached HEAD, common in CI
+	// checkouts) simply means the branchname detector finds nothing.
+	branchName, _ := gitops.GetCurrentBranch(repoPath)
+
 	var results []CommitResult
 	for _, c := range commits {
-		result := scanOneCommit(c, detectors)
+		result := scanOneCommit(c, branchName, detectors)
 		results = append(results, result)
 	}
 
@@ -48,7 +52,8 @@ func ScanCommit(repoPath, hash string, detectors []detection.Detector) (CommitRe
 		return CommitResult{}, err
 	}
 
-	return scanOneCommit(c, detectors), nil
+	branchName, _ := gitops.GetCurrentBranch(repoPath)
+	return scanOneCommit(c, branchName, detectors), nil
 }
 
 // ScanText runs detectors against arbitrary text (PR body, comments, etc).
@@ -61,13 +66,14 @@ func ScanText(text string, detectors []detection.Detector) []detection.Finding {
 	return findings
 }
 
-func scanOneCommit(c gitops.Commit, detectors []detection.Detector) CommitResult {
+func scanOneCommit(c gitops.Commit, branchName string, detectors []detection.Detector) CommitResult {
 	input := detection.Input{
 		CommitHash:    c.Hash,
 		AuthorEmail:   c.AuthorEmail,
 		CommitEmail:   c.CommitterEmail,
 		CommitMessage: c.Message,
 		Notes:         c.Notes,
+		BranchName:    branchName,
 	}
 
 	var findings []detection.Finding
