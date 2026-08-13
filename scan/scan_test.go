@@ -160,7 +160,7 @@ func TestScanCommitRange(t *testing.T) {
 	perDetectorScores := report.Summary.PerDetectorScores
 	committerScore := perDetectorScores["committer"]
 	if committerScore != 95 {
-		t.Errorf("expected committer score to be 85, found %f", committerScore)
+		t.Errorf("expected committer score to be 95, found %f", committerScore)
 	}
 	gitnotesScore := perDetectorScores["gitnotes"]
 	if gitnotesScore != 0 {

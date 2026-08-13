@@ -357,9 +357,27 @@ func TestDetect(t *testing.T) {
 			wantConfidence: detection.ConfidenceHigh,
 		},
 		{
+			name: "AI used checkbox in a list with tool mention",
+			input: detection.Input{
+				Text: "- [x] This contribution was assisted or created by Generative AI tools.\n\nWhich AI tool was used? Claude",
+			},
+			wantTools:      []string{"Claude"},
+			wantScore:      95,
+			wantConfidence: detection.ConfidenceHigh,
+		},
+		{
 			name: "AI used checkbox with multiple tool mentions",
 			input: detection.Input{
 				Text: "[x] This contribution was assisted or created by Generative AI tools.\n\nTools used: Claude and Cursor",
+			},
+			wantTools:      []string{"Claude", "Cursor"},
+			wantScore:      95,
+			wantConfidence: detection.ConfidenceHigh,
+		},
+		{
+			name: "AI used checkbox in a list with multiple tool mentions",
+			input: detection.Input{
+				Text: "- [x] This contribution was assisted or created by Generative AI tools.\n\nTools used: Claude and Cursor",
 			},
 			wantTools:      []string{"Claude", "Cursor"},
 			wantScore:      95,
@@ -377,7 +395,8 @@ func TestDetect(t *testing.T) {
 		{
 			name: "AI used checkbox with detailed disclosure",
 			input: detection.Input{
-				Text: `Generative AI disclosure
+				Text: `
+Generative AI disclosure
 
 Please select one option:
 
@@ -395,9 +414,48 @@ If AI tools were used, please provide details below:
 			wantConfidence: detection.ConfidenceHigh,
 		},
 		{
-			name: "AI used checkbox with lowercase x and whitespace",
+			name: "AI used checkbox in a list with detailed disclosure",
+			input: detection.Input{
+				Text: `
+Generative AI disclosure
+
+Please select one option:
+
+- [ ] This contribution was NOT assisted or created by Generative AI tools.
+- [x] This contribution was assisted or created by Generative AI tools.
+
+If AI tools were used, please provide details below:
+
+- What tools were used? Claude
+- How were these tools used? Draft.
+- Did you review these outputs before submitting this PR? Yes.`,
+			},
+			wantTools:      []string{"Claude"},
+			wantScore:      95,
+			wantConfidence: detection.ConfidenceHigh,
+		},
+		{
+			name: "AI used checkbox with uppercase x and whitespace",
 			input: detection.Input{
 				Text: "[ X ]   This contribution was assisted or created by Generative AI tools.   ",
+			},
+			wantTools:      []string{""},
+			wantScore:      75,
+			wantConfidence: detection.ConfidenceHigh,
+		},
+		{
+			name: "AI used checkbox in a list with uppercase x and whitespace",
+			input: detection.Input{
+				Text: "   -   [ X ]   This contribution was assisted or created by Generative AI tools.   ",
+			},
+			wantTools:      []string{""},
+			wantScore:      75,
+			wantConfidence: detection.ConfidenceHigh,
+		},
+		{
+			name: "AI used checkbox in a list with uppercase x and uneven whitespace",
+			input: detection.Input{
+				Text: "-[ X ]   This contribution was assisted or created by Generative AI tools.   ",
 			},
 			wantTools:      []string{""},
 			wantScore:      75,
@@ -407,6 +465,15 @@ If AI tools were used, please provide details below:
 			name: "AI used checkbox unchecked",
 			input: detection.Input{
 				Text: "[ ] This contribution was assisted or created by Generative AI tools.\n\nClaude was not used.",
+			},
+			wantTools:      []string{"Claude"},
+			wantScore:      20,
+			wantConfidence: detection.ConfidenceLow,
+		},
+		{
+			name: "AI used checkbox in a list unchecked",
+			input: detection.Input{
+				Text: "- [ ] This contribution was assisted or created by Generative AI tools.\n\nClaude was not used.",
 			},
 			wantTools:      []string{"Claude"},
 			wantScore:      20,

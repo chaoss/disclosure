@@ -163,7 +163,11 @@ Examples:
   else
     echo "AI involvement detected"
     exit 1
-  fi`,
+  fi
+
+  # Set custom confidence levels
+  disclosure scan --confidence-levels=low=20,medium=50, high=100 --format=json
+  `,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			repoPath := "."
@@ -278,8 +282,8 @@ Examples:
 
   # Use checkbox labels
   disclosure text \
-	--checkbox-ai-used-label="AI was used in this PR" \
-	--checkbox-ai-not-used-label="AI was not used in this PR" \
+	--checkbox-label-ai-used="AI was used in this PR" \
+	--checkbox-label-ai-not-used="AI was not used in this PR" \
 	--input=pr-body.txt
   `,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -330,8 +334,8 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&checkboxAIUsedLabel, "check-label-ai-used", "", "string label for checkbox for AI use declaration")
-	cmd.Flags().StringVar(&checkboxAINotUsedLabel, "check-label-ai-not-used", "", "string label for checkbox for no AI use declaration")
+	cmd.Flags().StringVar(&checkboxAIUsedLabel, "checkbox-label-ai-used", "", "string label for checkbox for AI use declaration")
+	cmd.Flags().StringVar(&checkboxAINotUsedLabel, "checkbox-label-ai-not-used", "", "string label for checkbox for no AI use declaration")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
 

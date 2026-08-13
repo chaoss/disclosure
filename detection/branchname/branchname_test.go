@@ -7,7 +7,7 @@ import (
 )
 
 func TestDetectKnownPrefixes(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	for prefix, expectedTool := range detection.KnownAgentBranchPrefixes {
 		branch := prefix + "fix-bug"
 		findings := d.Detect(detection.Input{BranchName: branch})
@@ -25,7 +25,7 @@ func TestDetectKnownPrefixes(t *testing.T) {
 		if finding.Confidence != detection.ConfidenceHigh {
 			t.Errorf(
 				"Detect(%q): confidence = %s, want %s",
-				branch, finding.Confidence.String(), detection.ConfidenceMedium.String(),
+				branch, finding.Confidence.String(), detection.ConfidenceHigh.String(),
 			)
 		}
 		if finding.Detector != "branchname" {

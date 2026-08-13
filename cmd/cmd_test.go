@@ -665,7 +665,7 @@ func TestParseKeyValueFloatList(t *testing.T) {
 	}
 }
 
-func TestRunScanFlags(t *testing.T) {
+func TestRunScanConfidenceLevels(t *testing.T) {
 	dir := initTestRepo(t)
 
 	tests := []struct {
@@ -681,12 +681,12 @@ func TestRunScanFlags(t *testing.T) {
 			wantErrText: "invalid confidence",
 		},
 		{
-			name:     "invalid confidence scores format",
+			name:     "invalid confidence levels format",
 			args:     []string{"scan", "--confidence-levels=low", dir},
 			wantCode: ExitError,
 		},
 		{
-			name:     "reject NaN confidence score",
+			name:     "reject NaN confidence levels",
 			args:     []string{"scan", "--confidence-levels=high=NaN", dir},
 			wantCode: ExitError,
 		},
@@ -722,7 +722,7 @@ func TestRunScanFlags(t *testing.T) {
 	}
 }
 
-func TestRunScanScoreFlags(t *testing.T) {
+func TestRunScanConfidenceLevelsJson(t *testing.T) {
 	dir := initTestRepo(t)
 
 	tests := []struct {
@@ -730,7 +730,7 @@ func TestRunScanScoreFlags(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "confidence scores",
+			name: "confidence levels",
 			args: []string{
 				"scan",
 				"--format=json",
@@ -751,22 +751,60 @@ func TestRunScanScoreFlags(t *testing.T) {
 
 			var report scan.Report
 			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-				t.Fatalf("unmarshal: %v", err)
-			}
-
-			var findings []detection.Finding
-			for _, c := range report.Commits {
-				findings = append(findings, c.Findings...)
+				t.Fatalf("unmarshalling error, invalid json: %v", err)
 			}
 		})
 	}
 }
 
-func TestScanCommandInvalidFlags(t *testing.T) {
+func TestScanCommandConfidenceLevelsValid(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
 	}{
+		{
+			name: "confidence levels all valid",
+			args: []string{"--confidence-levels", "low=10,medium=50,high=90"},
+		},
+		{
+			name: "confidence levels low and high set",
+			args: []string{"--confidence-levels", "low=10,high=90"},
+		},
+		{
+			name: "confidence levels large intervals",
+			args: []string{"--confidence-levels", "low=1,medium=10,high=1000"},
+		},
+		{
+			name: "confidence levels medium and high set",
+			args: []string{"--confidence-levels", "medium=50,high=100"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+
+			exitCode := ExitNoAI
+			cmd := scanCommand(&stdout, &stderr, &exitCode)
+			cmd.SetArgs(tt.args)
+			_ = cmd.Execute()
+
+			if exitCode != ExitError {
+				t.Fatalf("expected ExitError, got %d (stderr=%q)", exitCode, stderr.String())
+			}
+		})
+	}
+}
+
+func TestScanCommandConfidenceLevelsInvalid(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "confidence empty levels",
+			args: []string{"--confidence-levels", ""},
+		},
 		{
 			name: "confidence missing equals",
 			args: []string{"--confidence-levels", "low"},
@@ -884,8 +922,8 @@ func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
 			code := Run([]string{
 				"text",
 				"--format=json",
-				"--check-label-ai-used=" + tt.usedLabel,
-				"--check-label-ai-not-used=" + tt.notUsedLabel,
+				"--checkbox-label-ai-used=" + tt.usedLabel,
+				"--checkbox-label-ai-not-used=" + tt.notUsedLabel,
 				"--input=" + file,
 			}, &stdout, &stderr)
 			if code != int(tt.wantExitCode) {
