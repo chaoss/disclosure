@@ -70,7 +70,7 @@ type toolMatch struct {
 
 func newCheckboxRegex(label string) *regexp.Regexp {
 	return regexp.MustCompile(
-		`(?im)^[ \t]*-*[ \t]*\[[ \t]*x[ \t]*\][ \t]*` + regexp.QuoteMeta(label) + `[ \t]*$`,
+		`(?im)^[ \t]*[*+-]?[ \t]*\[[ \t]*x[ \t]*\][ \t]+` + regexp.QuoteMeta(label) + `[ \t]*\r?$`,
 	)
 }
 func (d *Detector) setCheckboxAIUsed(label string) {
