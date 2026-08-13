@@ -7,7 +7,7 @@ import (
 )
 
 func TestDetect(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 
 	tests := []struct {
 		name      string
@@ -103,6 +103,11 @@ func TestDetect(t *testing.T) {
 			name:      "Devin mention",
 			input:     detection.Input{Text: "Devin created this PR"},
 			wantTools: []string{"Devin"},
+		},
+		{
+			name:      "duplicate tool mentions only produce one finding",
+			input:     detection.Input{Text: "Claude helped here. Claude helped there."},
+			wantTools: []string{"Claude"},
 		},
 		{
 			name:      "Qwen coder variant match",
@@ -249,29 +254,29 @@ func TestDetect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			findings := d.Detect(tt.input)
-			gotTools := make([]string, len(findings))
+
+			if len(findings) != len(tt.wantTools) {
+				t.Fatalf("findings count = %d, want %d. findings=%v", len(findings), len(tt.wantTools), findings)
+			}
+
+			expectedScore := detection.ToolMentionBaseScore
+			expectedConfidence := detection.ScoreToConfidence(d.ConfidenceLevels, expectedScore)
+
 			for i, f := range findings {
-				gotTools[i] = f.Tool
-				if f.Confidence != detection.ConfidenceLow {
-					t.Errorf("confidence = %d, want %d", f.Confidence, detection.ConfidenceLow)
+				if f.Tool != tt.wantTools[i] {
+					t.Errorf("tool[%d] = %q, want %q", i, f.Tool, tt.wantTools[i])
 				}
+
+				if f.Score != expectedScore {
+					t.Errorf("score[%d] = %v, want %v", i, f.Score, expectedScore)
+				}
+
+				if f.Confidence != expectedConfidence {
+					t.Errorf("confidence[%d] = %d, want %d", i, f.Confidence, expectedConfidence)
+				}
+
 				if f.Detector != "toolmention" {
-					t.Errorf("detector = %q, want %q", f.Detector, "toolmention")
-				}
-			}
-
-			if len(gotTools) == 0 {
-				gotTools = nil
-			}
-
-			if len(gotTools) != len(tt.wantTools) {
-				t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
-				return
-			}
-			for i := range gotTools {
-				if gotTools[i] != tt.wantTools[i] {
-					t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
-					return
+					t.Errorf("detector[%d] = %q, want %q", i, f.Detector, "toolmention")
 				}
 			}
 		})

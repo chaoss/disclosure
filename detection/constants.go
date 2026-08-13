@@ -186,3 +186,30 @@ var GitNotesAuthorshipPrefix = "authorship/"
 
 // TrailerEmailPattern Regex to match email address in commit trailers
 var TrailerEmailPattern = regexp.MustCompile(`\s*<[^>]+>`)
+
+// Numeric scoring constants for respective detectors
+const (
+	// Trailer detector
+	CoauthoredByTrailerBaseScore  float64 = 40.0
+	CoauthorKnownEmailBonusPoints float64 = 35.0
+	CoauthorModelBonusPoints      float64 = 10.0
+	AssistedByTrailerBaseScore    float64 = 75.0
+	TrailerMatchBaseScore         float64 = 35.0
+	TrailerNotMatchedScore        float64 = 0.0
+	AdditionalTrailerBonusPoints  float64 = 20.0
+	SessionIDBonusPoints          float64 = 45.0
+
+	// Tool mention detector
+	ToolMentionBaseScore float64 = 20.0
+
+	// Committer detector
+	CommitterMatchBaseScore         float64 = 75.0
+	CommitterKnownEmailBonusPoints  float64 = 20.0
+	CommitterEmailSuffixBonusPoints float64 = 10.0
+
+	// Gitnotes detector
+	GitNotesMatchBaseScore float64 = 75.0
+
+	// Branch name detector
+	BranchNameBaseScore float64 = 75.0
+)

@@ -6,8 +6,28 @@ import (
 	"github.com/chaoss/disclosure/detection"
 )
 
+func assertFindingMetadata(t *testing.T, finding detection.Finding, wantScore float64) {
+	t.Helper()
+
+	if finding.Score != wantScore {
+		t.Errorf("score = %f, want %f", finding.Score, wantScore)
+	}
+
+	expectedConfidence := detection.ScoreToConfidence(
+		detection.GetDefaultConfidenceLevels(), wantScore,
+	)
+
+	if finding.Confidence != expectedConfidence {
+		t.Errorf("confidence = %d, want %d", finding.Confidence, expectedConfidence)
+	}
+
+	if finding.Detector != "gitnotes" {
+		t.Errorf("detector = %q, want %q", finding.Detector, "gitnotes")
+	}
+}
+
 func TestDetect(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 
 	validNote := `src/main.rs
   abcd1234abcd1234 1-10,15-20
@@ -68,18 +88,21 @@ src/lib.rs
 		notes      string
 		wantTools  []string
 		wantModels []string
+		wantScore  float64
 	}{
 		{
 			name:       "valid git-ai note with single tool",
 			notes:      validNote,
 			wantTools:  []string{"cursor"},
 			wantModels: []string{"claude-4.5-opus"},
+			wantScore:  detection.GitNotesMatchBaseScore,
 		},
 		{
 			name:       "multiple tools in note",
 			notes:      multiToolNote,
 			wantTools:  []string{"cursor", "claude-code"},
 			wantModels: []string{"claude-4.5-opus", "claude-3-sonnet"},
+			wantScore:  detection.GitNotesMatchBaseScore,
 		},
 		{
 			name:      "empty notes",
@@ -116,12 +139,8 @@ src/lib.rs
 			for i, f := range findings {
 				gotTools[i] = f.Tool
 				gotModels[i] = f.Model
-				if f.Confidence != detection.ConfidenceHigh {
-					t.Errorf("confidence = %d, want %d", f.Confidence, detection.ConfidenceHigh)
-				}
-				if f.Detector != "gitnotes" {
-					t.Errorf("detector = %q, want %q", f.Detector, "gitnotes")
-				}
+
+				assertFindingMetadata(t, f, tt.wantScore)
 			}
 
 			if len(gotTools) == 0 {
@@ -162,7 +181,7 @@ src/lib.rs
 }
 
 func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	note := `src/main.rs
   first 1-10
   second 11-20
@@ -196,6 +215,7 @@ func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
 	findings := d.Detect(detection.Input{Notes: note})
 	wantTools := []string{"cursor", "cursor"}
 	wantModels := []string{"claude-4.5-opus", "gpt-4o"}
+	wantScore := detection.GitNotesMatchBaseScore
 
 	if len(findings) != len(wantTools) {
 		t.Fatalf("expected %d findings, got %d: %#v", len(wantTools), len(findings), findings)
@@ -207,11 +227,12 @@ func TestDetectPreservesDistinctToolModelPairs(t *testing.T) {
 		if finding.Model != wantModels[i] {
 			t.Errorf("model[%d] = %q, want %q", i, finding.Model, wantModels[i])
 		}
+		assertFindingMetadata(t, finding, wantScore)
 	}
 }
 
 func TestDetectDetailIncludesModel(t *testing.T) {
-	d := &Detector{}
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
 	note := `src/main.rs
   abcd1234abcd1234 1-10
 ---
@@ -236,6 +257,8 @@ func TestDetectDetailIncludesModel(t *testing.T) {
 	if len(findings) != 1 {
 		t.Fatalf("expected 1 finding, got %d", len(findings))
 	}
+
+	assertFindingMetadata(t, findings[0], detection.GitNotesMatchBaseScore)
 
 	if findings[0].Detail == "" {
 		t.Error("expected non-empty detail")

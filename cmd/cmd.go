@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
@@ -30,14 +32,47 @@ const (
 	ExitError = 2
 )
 
-func allDetectors() []detection.Detector {
+func allDetectors(confidenceLevels map[detection.Confidence]float64) []detection.Detector {
 	return []detection.Detector{
-		&committer.Detector{},
-		&gitnotes.Detector{},
-		&trailer.Detector{},
-		&toolmention.Detector{},
-		&branchname.Detector{},
+		&committer.Detector{ConfidenceLevels: confidenceLevels},
+		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
+		&trailer.Detector{ConfidenceLevels: confidenceLevels},
+		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
+		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
+}
+
+// parseKeyValueFloatList parses strings like "a=1,b=2.5" into a map[string]float64.
+func parseKeyValueFloatList(s string) (map[string]float64, error) {
+	out := map[string]float64{}
+	if strings.TrimSpace(s) == "" {
+		return out, nil
+	}
+	parts := strings.SplitSeq(s, ",")
+	for p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) != 2 {
+			return nil, fmt.Errorf("invalid entry: %q", p)
+		}
+		key := strings.TrimSpace(kv[0])
+		if key == "" {
+			return nil, fmt.Errorf("empty key in entry: %q", p)
+		}
+		valStr := strings.TrimSpace(kv[1])
+		if valStr == "" {
+			return nil, fmt.Errorf("empty value in entry: %q", p)
+		}
+		v, err := strconv.ParseFloat(valStr, 64)
+		if err != nil || math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("invalid numeric value %q in entry %q", valStr, p)
+		}
+		out[key] = v
+	}
+	return out, nil
 }
 
 // Run is the main entry point for the CLI. Returns an exit code.
@@ -83,6 +118,7 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var rangeFlag string
 	var formatFlag string
 	var minConfFlag string
+	var confidenceLevelsFlag string
 
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
@@ -126,14 +162,33 @@ Examples:
 				repoPath = args[0]
 			}
 
-			minConf, err := output.ConfidenceFromString(minConfFlag)
+			minConf, err := detection.ConfidenceFromString(minConfFlag)
 			if err != nil {
 				fmt.Fprintln(stderr, err)
 				*exitCode = ExitError
 				return err
 			}
 
-			detectors := allDetectors()
+			// parse confidence-levels override if provided
+			confidenceLevels := detection.GetDefaultConfidenceLevels()
+			if strings.TrimSpace(confidenceLevelsFlag) != "" {
+				flagMap, err := parseKeyValueFloatList(confidenceLevelsFlag)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+				if confidenceLevels, err = detection.SetConfidenceLevelsFromStrings(
+					confidenceLevels,
+					flagMap,
+				); err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+			}
+
+			detectors := allDetectors(confidenceLevels)
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -141,7 +196,7 @@ Examples:
 				return err
 			}
 
-			report = filterReport(report, minConf)
+			report = filterReport(report, minConf, confidenceLevels)
 
 			switch formatFlag {
 			case "json":
@@ -173,6 +228,7 @@ Examples:
 	cmd.Flags().StringVar(&rangeFlag, "range", "", "commit range in BASE..HEAD format")
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
 }
@@ -223,7 +279,7 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors()
+			detectors := allDetectors(detection.GetDefaultConfidenceLevels())
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			switch formatFlag {
@@ -277,7 +333,11 @@ Examples:
 	}
 }
 
-func filterReport(report scan.Report, minConf detection.Confidence) scan.Report {
+func filterReport(
+	report scan.Report,
+	minConf detection.Confidence,
+	confidenceLevels map[detection.Confidence]float64,
+) scan.Report {
 	if minConf <= detection.ConfidenceLow {
 		return report
 	}
@@ -291,22 +351,31 @@ func filterReport(report scan.Report, minConf detection.Confidence) scan.Report 
 		},
 	}
 
-	for _, cr := range report.Commits {
-		var kept []detection.Finding
-		for _, f := range cr.Findings {
+	for _, commit := range report.Commits {
+		var commitFindings []detection.Finding
+		for _, f := range commit.Findings {
 			if f.Confidence >= minConf {
-				kept = append(kept, f)
+				commitFindings = append(commitFindings, f)
 			}
 		}
-		result := scan.CommitResult{Hash: cr.Hash, Findings: kept}
-		filtered.Commits = append(filtered.Commits, result)
 
-		if len(kept) > 0 {
+		// Recompute per-commit score from the kept findings
+		commitScore, perDetectorScores := detection.ConsolidateScoreByFindings(commitFindings)
+		confidence := detection.ScoreToConfidence(confidenceLevels, commitScore)
+		result := scan.CommitResult{
+			Hash:              commit.Hash,
+			Findings:          commitFindings,
+			Score:             commitScore,
+			Confidence:        confidence,
+			PerDetectorScores: perDetectorScores,
+		}
+		filtered.Commits = append(filtered.Commits, result)
+		if len(commitFindings) > 0 {
 			filtered.Summary.AICommits++
 		}
-		for _, f := range kept {
-			filtered.Summary.ToolCounts[f.Tool]++
-			filtered.Summary.ByConfidence[f.Confidence.String()]++
+		for _, commitFinding := range commitFindings {
+			filtered.Summary.ToolCounts[commitFinding.Tool]++
+			filtered.Summary.ByConfidence[commitFinding.Confidence.String()]++
 		}
 	}
 
@@ -352,7 +421,7 @@ func generateDocs(exitCode *int) *cobra.Command {
 				docDir = filepath.Clean(filepath.Join(outputDir, formatFlag))
 				err = os.MkdirAll(docDir, 0o750)
 			} else {
-				err = fmt.Errorf("unknown format: %s\n", formatFlag)
+				err = fmt.Errorf("unknown format: %s", formatFlag)
 			}
 			if err != nil {
 				return prepareError(err)

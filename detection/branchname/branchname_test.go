@@ -15,14 +15,21 @@ func TestDetectKnownPrefixes(t *testing.T) {
 			t.Errorf("Detect(%q): got %d findings, want 1", branch, len(findings))
 			continue
 		}
-		if findings[0].Tool != expectedTool {
-			t.Errorf("Detect(%q): tool = %q, want %q", branch, findings[0].Tool, expectedTool)
+		finding := findings[0]
+		if finding.Tool != expectedTool {
+			t.Errorf("Detect(%q): tool = %q, want %q", branch, finding.Tool, expectedTool)
 		}
-		if findings[0].Confidence != detection.ConfidenceMedium {
-			t.Errorf("Detect(%q): confidence = %d, want %d", branch, findings[0].Confidence, detection.ConfidenceMedium)
+		if finding.Score != detection.BranchNameBaseScore {
+			t.Errorf("Detect(%q): score = %f, want %f", branch, finding.Score, detection.BranchNameBaseScore)
 		}
-		if findings[0].Detector != "branchname" {
-			t.Errorf("Detect(%q): detector = %q, want %q", branch, findings[0].Detector, "branchname")
+		if finding.Confidence != detection.ConfidenceHigh {
+			t.Errorf(
+				"Detect(%q): confidence = %s, want %s",
+				branch, finding.Confidence.String(), detection.ConfidenceMedium.String(),
+			)
+		}
+		if finding.Detector != "branchname" {
+			t.Errorf("Detect(%q): detector = %q, want %q", branch, finding.Detector, "branchname")
 		}
 	}
 }

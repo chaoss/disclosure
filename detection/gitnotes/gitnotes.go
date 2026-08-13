@@ -7,9 +7,13 @@ import (
 	"github.com/chaoss/disclosure/detection"
 )
 
-type Detector struct{}
+type Detector struct {
+	ConfidenceLevels map[detection.Confidence]float64
+}
 
 func (d *Detector) Name() string { return "gitnotes" }
+
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 type toolModelPair struct {
 	tool  string
@@ -29,6 +33,8 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		promptIDs = append(promptIDs, promptID)
 	}
 	sort.Strings(promptIDs)
+	score := detection.GitNotesMatchBaseScore
+	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 
 	for _, promptID := range promptIDs {
 		prompt := parseResult.Metadata.Prompts[promptID]
@@ -55,7 +61,8 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 			Detector:   d.Name(),
 			Tool:       tool,
 			Model:      model,
-			Confidence: detection.ConfidenceHigh,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     detail,
 		})
 	}

@@ -41,9 +41,13 @@ func init() {
 	}
 }
 
-type Detector struct{}
+type Detector struct {
+	ConfidenceLevels map[detection.Confidence]float64
+}
 
 func (d *Detector) Name() string { return "toolmention" }
+
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 type toolMatch struct {
 	start int
@@ -92,12 +96,16 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		lastEnd = match.end
 	}
 
+	score := detection.ToolMentionBaseScore
+	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
+
 	findings := make([]detection.Finding, 0, len(toolMatches))
 	for _, match := range toolMatches {
 		findings = append(findings, detection.Finding{
 			Detector:   d.Name(),
 			Tool:       match.name,
-			Confidence: detection.ConfidenceLow,
+			Score:      score,
+			Confidence: confidence,
 			Detail:     "text mentions " + match.name,
 		})
 	}
