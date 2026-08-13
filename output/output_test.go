@@ -33,7 +33,7 @@ func sampleReport() scan.Report {
 			{
 				Hash:       "def789ghi012",
 				Findings:   nil,
-				Score:      0.0,
+				Score:      20.0,
 				Confidence: detection.ConfidenceLow,
 			},
 		},

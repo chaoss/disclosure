@@ -940,14 +940,6 @@ func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
 			}
 
 			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
-				t.Fatalf(
-					"failed to unmarshal output: %v (output=%s)",
-					err,
-					stdout.String(),
-				)
-			}
-
-			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 				t.Fatalf("failed to unmarshal findings: %v (output=%s)", err, stdout.String())
 			}
 
