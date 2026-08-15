@@ -693,7 +693,74 @@ func TestRunScanConfidenceLevels(t *testing.T) {
 		{
 			name:     "both valid flags",
 			args:     []string{"scan", "--confidence-levels=low=15,medium=55,high=95", dir},
-			wantCode: ExitAI, // or ExitNoAI
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels all valid",
+			args:     []string{"scan", "--confidence-levels", "low=10,medium=50,high=90", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels low and high set",
+			args:     []string{"scan", "--confidence-levels", "low=10,high=90", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels large intervals",
+			args:     []string{"scan", "--confidence-levels", "low=1,medium=10,high=1000", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels medium and high set",
+			args:     []string{"scan", "--confidence-levels", "medium=50,high=100", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence empty levels",
+			args:     []string{"scan", "--confidence-levels", "", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:        "confidence missing equals",
+			args:        []string{"scan", "--confidence-levels", "low", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid entry",
+		},
+		{
+			name:        "confidence empty key",
+			args:        []string{"scan", "--confidence-levels", "=10", dir},
+			wantCode:    ExitError,
+			wantErrText: "empty key in entry",
+		},
+		{
+			name:        "confidence empty value",
+			args:        []string{"scan", "--confidence-levels", "low=", dir},
+			wantCode:    ExitError,
+			wantErrText: "empty value in entry",
+		},
+		{
+			name:        "confidence invalid number",
+			args:        []string{"scan", "--confidence-levels", "low=abc", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence NaN",
+			args:        []string{"scan", "--confidence-levels", "high=NaN", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence Inf",
+			args:        []string{"scan", "--confidence-levels", "high=Inf", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence -Inf",
+			args:        []string{"scan", "--confidence-levels", "high=-Inf", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
 		},
 	}
 
@@ -752,101 +819,6 @@ func TestRunScanConfidenceLevelsJson(t *testing.T) {
 			var report scan.Report
 			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
 				t.Fatalf("unmarshalling error, invalid json: %v", err)
-			}
-		})
-	}
-}
-
-func TestScanCommandConfidenceLevelsValid(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "confidence levels all valid",
-			args: []string{"--confidence-levels", "low=10,medium=50,high=90"},
-		},
-		{
-			name: "confidence levels low and high set",
-			args: []string{"--confidence-levels", "low=10,high=90"},
-		},
-		{
-			name: "confidence levels large intervals",
-			args: []string{"--confidence-levels", "low=1,medium=10,high=1000"},
-		},
-		{
-			name: "confidence levels medium and high set",
-			args: []string{"--confidence-levels", "medium=50,high=100"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-
-			exitCode := ExitNoAI
-			cmd := scanCommand(&stdout, &stderr, &exitCode)
-			cmd.SetArgs(tt.args)
-			_ = cmd.Execute()
-
-			if exitCode != ExitError {
-				t.Fatalf("expected ExitError, got %d (stderr=%q)", exitCode, stderr.String())
-			}
-		})
-	}
-}
-
-func TestScanCommandConfidenceLevelsInvalid(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "confidence empty levels",
-			args: []string{"--confidence-levels", ""},
-		},
-		{
-			name: "confidence missing equals",
-			args: []string{"--confidence-levels", "low"},
-		},
-		{
-			name: "confidence empty key",
-			args: []string{"--confidence-levels", "=10"},
-		},
-		{
-			name: "confidence empty value",
-			args: []string{"--confidence-levels", "low="},
-		},
-		{
-			name: "confidence invalid number",
-			args: []string{"--confidence-levels", "low=abc"},
-		},
-		{
-			name: "confidence NaN",
-			args: []string{"--confidence-levels", "high=NaN"},
-		},
-		{
-			name: "confidence Inf",
-			args: []string{"--confidence-levels", "high=Inf"},
-		},
-		{
-			name: "confidence -Inf",
-			args: []string{"--confidence-levels", "high=-Inf"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var stdout, stderr bytes.Buffer
-			exitCode := ExitNoAI
-
-			cmd := scanCommand(&stdout, &stderr, &exitCode)
-			cmd.SetArgs(tt.args)
-
-			_ = cmd.Execute()
-
-			if exitCode != ExitError {
-				t.Fatalf("expected ExitError, got %d (stderr=%q)", exitCode, stderr.String())
 			}
 		})
 	}
