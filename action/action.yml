@@ -18,6 +18,8 @@ inputs:
   min-confidence:
     description: 'Minimum confidence level (low, medium, high)'
     required: false
+    # set min-confidence to medium or above if your PR template has AI tools mentioned in comments etc.
+    # this will help avoid false positives especially when using AI use checkboxes.
     default: 'low'
   scan-pr-body:
     description: 'Whether to scan the PR body for AI tool mentions'
