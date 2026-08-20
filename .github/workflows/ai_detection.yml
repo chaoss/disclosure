@@ -27,3 +27,5 @@ jobs:
         persist-credentials: false
     - name: Run AI detection action
       uses: ./action
+      with:
+        min-confidence: 'medium'

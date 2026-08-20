@@ -32,16 +32,19 @@ const (
 	ExitError = 2
 )
 
+// detectorConfig struct to hold config properties for any of the detectors.
 type detectorConfig struct {
-	checkboxAIUsedLabel    string
-	checkboxAINotUsedLabel string
+	checkboxAIUsedLabel     string
+	checkboxAINotUsedLabel  string
+	enableCheckboxDetection bool
 }
 
 func allDetectors(confidenceLevels map[detection.Confidence]float64, config detectorConfig) []detection.Detector {
 	toolmentionDetector := &toolmention.Detector{}
 	toolmentionDetector.SetConfidenceLevels(confidenceLevels)
-	toolmentionDetector.SetCheckboxAILabels(config.checkboxAIUsedLabel, config.checkboxAINotUsedLabel)
-
+	toolmentionDetector.SetCheckboxConfig(
+		config.enableCheckboxDetection, config.checkboxAIUsedLabel, config.checkboxAINotUsedLabel,
+	)
 	return []detection.Detector{
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
@@ -251,6 +254,7 @@ func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var inputFlag string
 	var checkboxAIUsedLabel string
 	var checkboxAINotUsedLabel string
+	var enableCheckboxDetection bool
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -282,6 +286,7 @@ Examples:
 
   # Use checkbox labels
   disclosure text \
+	--enable-checkbox-detection
 	--checkbox-label-ai-used="AI was used in this PR" \
 	--checkbox-label-ai-not-used="AI was not used in this PR" \
 	--input=pr-body.txt
@@ -302,8 +307,9 @@ Examples:
 			}
 
 			detectors := allDetectors(detection.GetDefaultConfidenceLevels(), detectorConfig{
-				checkboxAIUsedLabel:    checkboxAIUsedLabel,
-				checkboxAINotUsedLabel: checkboxAINotUsedLabel,
+				checkboxAIUsedLabel:     checkboxAIUsedLabel,
+				checkboxAINotUsedLabel:  checkboxAINotUsedLabel,
+				enableCheckboxDetection: enableCheckboxDetection,
 			})
 			findings := scan.ScanText(string(textBytes), detectors)
 
@@ -334,8 +340,24 @@ Examples:
 		},
 	}
 
-	cmd.Flags().StringVar(&checkboxAIUsedLabel, "checkbox-label-ai-used", "", "string label for checkbox for AI use declaration")
-	cmd.Flags().StringVar(&checkboxAINotUsedLabel, "checkbox-label-ai-not-used", "", "string label for checkbox for no AI use declaration")
+	cmd.Flags().BoolVar(
+		&enableCheckboxDetection,
+		"enable-checkbox-detection",
+		false,
+		"flag to enable detecting ai use checkboxes in specified text",
+	)
+	cmd.Flags().StringVar(
+		&checkboxAIUsedLabel,
+		"checkbox-label-ai-used",
+		detection.DefaultCheckboxAIUsedLabel,
+		"string label for checkbox for AI use declaration",
+	)
+	cmd.Flags().StringVar(
+		&checkboxAINotUsedLabel,
+		"checkbox-label-ai-not-used",
+		detection.DefaultCheckboxAINotUsedLabel,
+		"string label for checkbox for no AI use declaration",
+	)
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
 

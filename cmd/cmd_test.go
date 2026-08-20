@@ -824,7 +824,7 @@ func TestRunScanConfidenceLevelsJson(t *testing.T) {
 	}
 }
 
-func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
+func TestRunTextCommandWithCheckboxDetection(t *testing.T) {
 	tests := []struct {
 		name              string
 		input             string
@@ -836,6 +836,39 @@ func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
 		wantExitCode      uint
 		wantFindingsCount int
 	}{
+		{
+			name:              "AI used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was assisted or created by Generative AI tools.\n\nClaude was used for drafting.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "Claude",
+			wantScore:         95,
+			wantConfidence:    detection.ConfidenceHigh,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
+		},
+		{
+			name:              "AI not used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was NOT assisted or created by Generative AI tools.\n\nClaude was used for drafting.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "Claude",
+			wantScore:         20,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
+		},
+		{
+			name:              "AI not used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was NOT assisted or created by Generative AI tools.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "",
+			wantScore:         0,
+			wantConfidence:    detection.ConfidenceNone,
+			wantExitCode:      ExitNoAI,
+			wantFindingsCount: 0,
+		},
 		{
 			name:              "custom AI used checkbox with tool",
 			input:             "[x] This PR was created with AI assistance\n\nClaude was used for drafting.",
@@ -880,6 +913,17 @@ func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
 			wantExitCode:      ExitNoAI,
 			wantFindingsCount: 0,
 		},
+		{
+			name:              "custom AI not used checkbox without tool",
+			input:             "[x] This PR was created without AI assistance\n\nNo tool mentioned in the discussion.",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "",
+			wantScore:         0,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitNoAI,
+			wantFindingsCount: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -894,6 +938,7 @@ func TestRunTextCommandCustomCheckboxLabels(t *testing.T) {
 			code := Run([]string{
 				"text",
 				"--format=json",
+				"--enable-checkbox-detection",
 				"--checkbox-label-ai-used=" + tt.usedLabel,
 				"--checkbox-label-ai-not-used=" + tt.notUsedLabel,
 				"--input=" + file,

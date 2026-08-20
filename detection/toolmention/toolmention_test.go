@@ -345,8 +345,55 @@ func TestDetect(t *testing.T) {
 			wantScore:      20,
 			wantConfidence: detection.ConfidenceLow,
 		},
+	}
 
-		// Checkbox-based AI disclosure tests.
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			findings := d.Detect(tt.input)
+
+			gotTools := make([]string, len(findings))
+			for i, f := range findings {
+				gotTools[i] = f.Tool
+
+				if f.Confidence != tt.wantConfidence {
+					t.Errorf(
+						"confidence = %d, want %d", f.Confidence, tt.wantConfidence,
+					)
+				}
+				if f.Detector != "toolmention" {
+					t.Errorf("detector = %q, want %q", f.Detector, "toolmention")
+				}
+			}
+
+			if len(gotTools) == 0 {
+				gotTools = nil
+			}
+
+			if len(gotTools) != len(tt.wantTools) {
+				t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
+				return
+			}
+
+			for i := range gotTools {
+				if gotTools[i] != tt.wantTools[i] {
+					t.Errorf("tools = %v, want %v", gotTools, tt.wantTools)
+					return
+				}
+			}
+		})
+	}
+}
+
+func TestCheckboxAwareDetectWithDefaultLabels(t *testing.T) {
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
+	d.SetCheckboxConfig(true, "", "")
+	tests := []struct {
+		name           string
+		input          detection.Input
+		wantTools      []string
+		wantScore      float64
+		wantConfidence detection.Confidence
+	}{
 		{
 			name: "AI used checkbox with tool mention",
 			input: detection.Input{
@@ -475,9 +522,9 @@ Contributing Conventions:
 By following the community's [contribution conventions](CONTRIBUTING.md) upfront, the review process will be accelerated and your PR merged more quickly.
 -->`,
 			},
-			wantTools:      []string{"ChatGPT", "Claude"},
-			wantScore:      20,
-			wantConfidence: detection.ConfidenceLow,
+			wantTools:      nil,
+			wantScore:      0,
+			wantConfidence: detection.ConfidenceNone,
 		},
 
 		{
@@ -604,9 +651,10 @@ By following the community's [contribution conventions](CONTRIBUTING.md) upfront
 func TestDetectCustomCheckboxLabels(t *testing.T) {
 	d := &Detector{}
 	d.SetConfidenceLevels(detection.GetDefaultConfidenceLevels())
-	d.SetCheckboxAILabels(
-		"This PR was created with AI assistance",
-		"This PR was created without AI assistance",
+	d.SetCheckboxConfig(
+		true,
+		"AI was used in this PR",
+		"AI wasn't used in this PR",
 	)
 
 	tests := []struct {
@@ -619,7 +667,7 @@ func TestDetectCustomCheckboxLabels(t *testing.T) {
 		{
 			name: "custom AI used checkbox with tool",
 			input: detection.Input{
-				Text: "[x] This PR was created with AI assistance\n\nClaude was used for drafting.",
+				Text: "[x] AI was used in this PR\n\nClaude was used for drafting.",
 			},
 			wantTools:      []string{"Claude"},
 			wantScore:      95,
@@ -628,7 +676,7 @@ func TestDetectCustomCheckboxLabels(t *testing.T) {
 		{
 			name: "custom AI used checkbox without tool",
 			input: detection.Input{
-				Text: "[x] This PR was created with AI assistance",
+				Text: "[x] AI was used in this PR",
 			},
 			wantTools:      []string{""},
 			wantScore:      75,
@@ -637,7 +685,7 @@ func TestDetectCustomCheckboxLabels(t *testing.T) {
 		{
 			name: "custom AI not used checkbox",
 			input: detection.Input{
-				Text: "[x] This PR was created without AI assistance\n\nClaude was mentioned in the discussion.",
+				Text: "[x] AI wasn't used in this PR\n\nClaude was mentioned in the discussion.",
 			},
 			wantTools:      []string{"Claude"},
 			wantScore:      20,
