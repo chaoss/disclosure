@@ -665,7 +665,7 @@ func TestParseKeyValueFloatList(t *testing.T) {
 	}
 }
 
-func TestRunScanFlags(t *testing.T) {
+func TestRunScanConfidenceLevels(t *testing.T) {
 	dir := initTestRepo(t)
 
 	tests := []struct {
@@ -681,19 +681,86 @@ func TestRunScanFlags(t *testing.T) {
 			wantErrText: "invalid confidence",
 		},
 		{
-			name:     "invalid confidence scores format",
+			name:     "invalid confidence levels format",
 			args:     []string{"scan", "--confidence-levels=low", dir},
 			wantCode: ExitError,
 		},
 		{
-			name:     "reject NaN confidence score",
+			name:     "reject NaN confidence levels",
 			args:     []string{"scan", "--confidence-levels=high=NaN", dir},
 			wantCode: ExitError,
 		},
 		{
 			name:     "both valid flags",
 			args:     []string{"scan", "--confidence-levels=low=15,medium=55,high=95", dir},
-			wantCode: ExitAI, // or ExitNoAI
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels all valid",
+			args:     []string{"scan", "--confidence-levels", "low=10,medium=50,high=90", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels low and high set",
+			args:     []string{"scan", "--confidence-levels", "low=10,high=90", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels large intervals",
+			args:     []string{"scan", "--confidence-levels", "low=1,medium=10,high=1000", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence levels medium and high set",
+			args:     []string{"scan", "--confidence-levels", "medium=50,high=100", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:     "confidence empty levels",
+			args:     []string{"scan", "--confidence-levels", "", dir},
+			wantCode: ExitAI,
+		},
+		{
+			name:        "confidence missing equals",
+			args:        []string{"scan", "--confidence-levels", "low", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid entry",
+		},
+		{
+			name:        "confidence empty key",
+			args:        []string{"scan", "--confidence-levels", "=10", dir},
+			wantCode:    ExitError,
+			wantErrText: "empty key in entry",
+		},
+		{
+			name:        "confidence empty value",
+			args:        []string{"scan", "--confidence-levels", "low=", dir},
+			wantCode:    ExitError,
+			wantErrText: "empty value in entry",
+		},
+		{
+			name:        "confidence invalid number",
+			args:        []string{"scan", "--confidence-levels", "low=abc", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence NaN",
+			args:        []string{"scan", "--confidence-levels", "high=NaN", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence Inf",
+			args:        []string{"scan", "--confidence-levels", "high=Inf", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
+		},
+		{
+			name:        "confidence -Inf",
+			args:        []string{"scan", "--confidence-levels", "high=-Inf", dir},
+			wantCode:    ExitError,
+			wantErrText: "invalid numeric value",
 		},
 	}
 
@@ -722,7 +789,7 @@ func TestRunScanFlags(t *testing.T) {
 	}
 }
 
-func TestRunScanScoreFlags(t *testing.T) {
+func TestRunScanConfidenceLevelsJson(t *testing.T) {
 	dir := initTestRepo(t)
 
 	tests := []struct {
@@ -730,7 +797,7 @@ func TestRunScanScoreFlags(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "confidence scores",
+			name: "confidence levels",
 			args: []string{
 				"scan",
 				"--format=json",
@@ -751,64 +818,175 @@ func TestRunScanScoreFlags(t *testing.T) {
 
 			var report scan.Report
 			if err := json.Unmarshal(stdout.Bytes(), &report); err != nil {
-				t.Fatalf("unmarshal: %v", err)
-			}
-
-			var findings []detection.Finding
-			for _, c := range report.Commits {
-				findings = append(findings, c.Findings...)
+				t.Fatalf("unmarshalling error, invalid json: %v", err)
 			}
 		})
 	}
 }
 
-func TestScanCommandInvalidFlags(t *testing.T) {
+func TestRunTextCommandWithCheckboxDetection(t *testing.T) {
 	tests := []struct {
-		name string
-		args []string
+		name              string
+		input             string
+		usedLabel         string
+		notUsedLabel      string
+		wantTool          string
+		wantScore         float64
+		wantConfidence    detection.Confidence
+		wantExitCode      uint
+		wantFindingsCount int
 	}{
 		{
-			name: "confidence missing equals",
-			args: []string{"--confidence-levels", "low"},
+			name:              "AI used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was assisted or created by Generative AI tools.\n\nClaude was used for drafting.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "Claude",
+			wantScore:         95,
+			wantConfidence:    detection.ConfidenceHigh,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
 		},
 		{
-			name: "confidence empty key",
-			args: []string{"--confidence-levels", "=10"},
+			name:              "AI not used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was NOT assisted or created by Generative AI tools.\n\nClaude was used for drafting.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "Claude",
+			wantScore:         20,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
 		},
 		{
-			name: "confidence empty value",
-			args: []string{"--confidence-levels", "low="},
+			name:              "AI not used checkbox with tool with default checkbox labels",
+			input:             "[x] This contribution was NOT assisted or created by Generative AI tools.",
+			usedLabel:         "",
+			notUsedLabel:      "",
+			wantTool:          "",
+			wantScore:         0,
+			wantConfidence:    detection.ConfidenceNone,
+			wantExitCode:      ExitNoAI,
+			wantFindingsCount: 0,
 		},
 		{
-			name: "confidence invalid number",
-			args: []string{"--confidence-levels", "low=abc"},
+			name:              "custom AI used checkbox with tool",
+			input:             "[x] This PR was created with AI assistance\n\nClaude was used for drafting.",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "Claude",
+			wantScore:         95,
+			wantConfidence:    detection.ConfidenceHigh,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
 		},
 		{
-			name: "confidence NaN",
-			args: []string{"--confidence-levels", "high=NaN"},
+			name:              "custom AI used checkbox without tool",
+			input:             "[x] This PR was created with AI assistance",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "",
+			wantScore:         75,
+			wantConfidence:    detection.ConfidenceHigh,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
 		},
 		{
-			name: "confidence Inf",
-			args: []string{"--confidence-levels", "high=Inf"},
+			name:              "custom AI not used checkbox with tool",
+			input:             "[x] This PR was created without AI assistance\n\nClaude was mentioned in the discussion.",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "Claude",
+			wantScore:         20,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitAI,
+			wantFindingsCount: 1,
 		},
 		{
-			name: "confidence -Inf",
-			args: []string{"--confidence-levels", "high=-Inf"},
+			name:              "custom AI not used checkbox without tool",
+			input:             "[x] This PR was created without AI assistance\n\nNo tool mentioned in the discussion.",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "",
+			wantScore:         0,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitNoAI,
+			wantFindingsCount: 0,
+		},
+		{
+			name:              "custom AI not used checkbox without tool",
+			input:             "[x] This PR was created without AI assistance\n\nNo tool mentioned in the discussion.",
+			usedLabel:         "This PR was created with AI assistance",
+			notUsedLabel:      "This PR was created without AI assistance",
+			wantTool:          "",
+			wantScore:         0,
+			wantConfidence:    detection.ConfidenceLow,
+			wantExitCode:      ExitNoAI,
+			wantFindingsCount: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			file := filepath.Join(tmp, "input.txt")
+			if err := os.WriteFile(file, []byte(tt.input), 0644); err != nil {
+				t.Fatalf("write input: %v", err)
+			}
+
 			var stdout, stderr bytes.Buffer
-			exitCode := ExitNoAI
+			code := Run([]string{
+				"text",
+				"--format=json",
+				"--enable-checkbox-detection",
+				"--cb-disclosed-ai=" + tt.usedLabel,
+				"--cb-disclosed-noai=" + tt.notUsedLabel,
+				"--input=" + file,
+			}, &stdout, &stderr)
+			if code != int(tt.wantExitCode) {
+				t.Fatalf(
+					"exit code=%d want=%d (stderr=%s, stdout=%s)",
+					code, tt.wantExitCode, stderr.String(), stdout.String(),
+				)
+			}
 
-			cmd := scanCommand(&stdout, &stderr, &exitCode)
-			cmd.SetArgs(tt.args)
+			var result struct {
+				Findings   []detection.Finding  `json:"findings"`
+				Score      float64              `json:"score"`
+				Confidence detection.Confidence `json:"confidence"`
+			}
 
-			_ = cmd.Execute()
+			if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+				t.Fatalf("failed to unmarshal findings: %v (output=%s)", err, stdout.String())
+			}
 
-			if exitCode != ExitError {
-				t.Fatalf("expected ExitError, got %d (stderr=%q)", exitCode, stderr.String())
+			findings := result.Findings
+			findingsCount := len(findings)
+			if findingsCount != tt.wantFindingsCount {
+				t.Fatalf(
+					"findings count=%d want=%d (findings=%v)",
+					findingsCount, tt.wantFindingsCount, findings,
+				)
+			}
+
+			if findingsCount > 0 {
+				f := findings[0]
+
+				if f.Tool != tt.wantTool {
+					t.Errorf("tool=%q want=%q", f.Tool, tt.wantTool)
+				}
+
+				if f.Score != tt.wantScore {
+					t.Errorf("score=%v want=%v", f.Score, tt.wantScore)
+				}
+
+				if f.Confidence != tt.wantConfidence {
+					t.Errorf("confidence=%s want=%s", f.Confidence.String(), tt.wantConfidence.String())
+				}
+
+				if f.Detector != "toolmention" {
+					t.Errorf("detector=%q want=%q", f.Detector, "toolmention")
+				}
 			}
 		})
 	}

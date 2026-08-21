@@ -4,20 +4,15 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/chaoss/disclosure/detection"
 )
 
-type toolPattern struct {
-	name    string
-	pattern *regexp.Regexp
-}
-
-var toolPatterns []toolPattern
-
-func init() {
+func getToolPatterns() []toolPattern {
+	var toolPatterns []toolPattern
 	const separator = `[\s_-]+`
 	names := append([]string(nil), detection.SupportedToolsInMentions...)
 	for _, name := range names {
@@ -39,28 +34,21 @@ func init() {
 			pattern: regexp.MustCompile(pattern),
 		})
 	}
+	return toolPatterns
 }
 
-type Detector struct {
-	ConfidenceLevels map[detection.Confidence]float64
+func newCheckboxRegex(label string) *regexp.Regexp {
+	return regexp.MustCompile(
+		`(?im)^[ \t]*[*+-]?[ \t]*\[[ \t]*(x)?[ \t]*\][ \t]+` + regexp.QuoteMeta(label) + `[ \t]*\r?$`,
+	)
 }
 
-func (d *Detector) Name() string { return "toolmention" }
-
-func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
-
-type toolMatch struct {
-	start int
-	end   int
-	name  string
+func stripComments(text string) string {
+	re := regexp.MustCompile(detection.HtmlCommentPattern)
+	return re.ReplaceAllString(text, "")
 }
 
-func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	text, err := input.GetTextWithCommitMessage()
-	if err != nil {
-		return []detection.Finding{}
-	}
-
+func matchTools(text string) []toolMatch {
 	matches := make([]toolMatch, 0, len(toolPatterns))
 	for _, tp := range toolPatterns {
 		for _, loc := range tp.pattern.FindAllStringIndex(text, -1) {
@@ -96,18 +84,135 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		lastEnd = match.end
 	}
 
-	score := detection.ToolMentionBaseScore
-	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
+	return toolMatches
+}
+
+type toolPattern struct {
+	name    string
+	pattern *regexp.Regexp
+}
+
+type toolMatch struct {
+	start int
+	end   int
+	name  string
+}
+
+type Detector struct {
+	ConfidenceLevels         map[detection.Confidence]float64
+	CheckboxDetectionEnabled bool
+	CheckboxAIUsedRegex      *regexp.Regexp
+	CheckboxAINotUsedRegex   *regexp.Regexp
+	initOnce                 sync.Once
+}
+
+var toolPatterns []toolPattern
+
+func init() {
+	toolPatterns = getToolPatterns()
+}
+
+func (d *Detector) Name() string { return "toolmention" }
+
+func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
+
+func (d *Detector) appendFinding(findings *[]detection.Finding, toolName string, score float64, detail string) {
+	*findings = append(*findings, detection.Finding{
+		Detector:   d.Name(),
+		Tool:       toolName,
+		Score:      score,
+		Confidence: detection.ScoreToConfidence(d.ConfidenceLevels, score),
+		Detail:     detail,
+	})
+}
+
+func (d *Detector) SetConfidenceLevels(confidenceLevels map[detection.Confidence]float64) {
+	d.ConfidenceLevels = confidenceLevels
+}
+
+// SetCheckboxConfig configures the checkbox labels.
+// Call this before the first Detect call to use custom labels,
+// otherwise Detect initializes the default labels.
+func (d *Detector) SetCheckboxConfig(enableCheckboxDetection bool, aiUsedLabel string, aiNotUsedLabel string) {
+	if aiUsedLabel == "" {
+		aiUsedLabel = detection.DefaultCheckboxAIUsedLabel
+	}
+	if aiNotUsedLabel == "" {
+		aiNotUsedLabel = detection.DefaultCheckboxAINotUsedLabel
+	}
+	d.CheckboxDetectionEnabled = enableCheckboxDetection
+	d.CheckboxAIUsedRegex = newCheckboxRegex(strings.TrimSpace(aiUsedLabel))
+	d.CheckboxAINotUsedRegex = newCheckboxRegex(strings.TrimSpace(aiNotUsedLabel))
+}
+
+func (d *Detector) Detect(input detection.Input) []detection.Finding {
+	text, err := input.GetTextWithCommitMessage()
+	if err != nil {
+		return []detection.Finding{}
+	}
+
+	// Let the checkbox aware detection run instead of text detection
+	if d.CheckboxDetectionEnabled {
+		return d.checkboxAwareDetect(text)
+	}
+
+	toolMatches := matchTools(text)
+	findings := make([]detection.Finding, 0, len(toolMatches))
+	if len(toolMatches) > 0 {
+		score := detection.ToolMentionBaseScore
+		for _, match := range toolMatches {
+			d.appendFinding(&findings, match.name, score, "text mentions "+match.name)
+		}
+		return findings
+	}
+	return findings
+}
+
+func (d *Detector) checkboxAwareDetect(inputText string) []detection.Finding {
+	inputText = stripComments(inputText)
+	toolMatches := matchTools(inputText)
+
+	var aiUsedCbTicked, aiNotUsedCbTicked bool
+
+	// check if ai use checkbox found
+	aiUsedMatches := d.CheckboxAIUsedRegex.FindStringSubmatch(inputText)
+	if len(aiUsedMatches) > 0 {
+		// if found, then we check if it's ticked
+		aiUsedCbTicked = strings.TrimSpace(strings.ToLower(aiUsedMatches[1])) == "x"
+	}
+
+	// check if no ai use checkbox found
+	aiNotUsedMatches := d.CheckboxAINotUsedRegex.FindStringSubmatch(inputText)
+	if len(aiNotUsedMatches) > 0 {
+		// if found then we check if it's ticked
+		aiNotUsedCbTicked = strings.TrimSpace(strings.ToLower(aiNotUsedMatches[1])) == "x"
+	}
+	isAIUseConfirmed := aiUsedCbTicked && !aiNotUsedCbTicked
+
+	detail := ""
+	if isAIUseConfirmed {
+		detail = "checkbox confirms AI was used and "
+	}
 
 	findings := make([]detection.Finding, 0, len(toolMatches))
-	for _, match := range toolMatches {
-		findings = append(findings, detection.Finding{
-			Detector:   d.Name(),
-			Tool:       match.name,
-			Score:      score,
-			Confidence: confidence,
-			Detail:     "text mentions " + match.name,
-		})
+
+	// tool mentions and checkbox
+	if len(toolMatches) > 0 {
+		score := detection.ToolMentionBaseScore
+		if isAIUseConfirmed {
+			score += detection.CheckboxAIUsedBaseScore
+		}
+		for _, match := range toolMatches {
+			d.appendFinding(&findings, match.name, score, detail+"text mentions "+match.name)
+		}
+		return findings
 	}
+
+	// checkbox only
+	if isAIUseConfirmed {
+		score := detection.CheckboxAIUsedBaseScore
+		d.appendFinding(&findings, "", score, detail+"text does not mention any specific tool")
+	}
+
 	return findings
 }

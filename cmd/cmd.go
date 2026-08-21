@@ -32,12 +32,24 @@ const (
 	ExitError = 2
 )
 
-func allDetectors(confidenceLevels map[detection.Confidence]float64) []detection.Detector {
+// detectorConfig struct to hold config properties for any of the detectors.
+type detectorConfig struct {
+	checkboxAIUsedLabel     string
+	checkboxAINotUsedLabel  string
+	enableCheckboxDetection bool
+}
+
+func allDetectors(confidenceLevels map[detection.Confidence]float64, config detectorConfig) []detection.Detector {
+	toolmentionDetector := &toolmention.Detector{}
+	toolmentionDetector.SetConfidenceLevels(confidenceLevels)
+	toolmentionDetector.SetCheckboxConfig(
+		config.enableCheckboxDetection, config.checkboxAIUsedLabel, config.checkboxAINotUsedLabel,
+	)
 	return []detection.Detector{
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
-		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
+		toolmentionDetector,
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
 }
@@ -154,7 +166,11 @@ Examples:
   else
     echo "AI involvement detected"
     exit 1
-  fi`,
+  fi
+
+  # Set custom confidence levels
+  disclosure scan --confidence-levels=low=20,medium=50, high=100 --format=json
+  `,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			repoPath := "."
@@ -188,7 +204,7 @@ Examples:
 				}
 			}
 
-			detectors := allDetectors(confidenceLevels)
+			detectors := allDetectors(confidenceLevels, detectorConfig{})
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -236,6 +252,9 @@ Examples:
 func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var inputFlag string
+	var checkboxAIUsedLabel string
+	var checkboxAINotUsedLabel string
+	var enableCheckboxDetection bool
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -263,7 +282,15 @@ Examples:
   cat comment.txt | disclosure text --min-confidence=medium
 
   # Use in a pipeline
-  disclosure text --input=review.txt --format=json | jq '.findings'`,
+  disclosure text --input=review.txt --format=json | jq '.findings'
+
+  # Use checkbox labels
+  disclosure text \
+	--enable-checkbox-detection
+	--cb-disclosed-ai="AI was used in this PR" \
+	--cb-disclosed-noai="AI was not used in this PR" \
+	--input=pr-body.txt
+  `,
 		RunE: func(_ *cobra.Command, args []string) error {
 			var textBytes []byte
 			var err error
@@ -279,7 +306,11 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors(detection.GetDefaultConfidenceLevels())
+			detectors := allDetectors(detection.GetDefaultConfidenceLevels(), detectorConfig{
+				checkboxAIUsedLabel:     checkboxAIUsedLabel,
+				checkboxAINotUsedLabel:  checkboxAINotUsedLabel,
+				enableCheckboxDetection: enableCheckboxDetection,
+			})
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			switch formatFlag {
@@ -309,6 +340,24 @@ Examples:
 		},
 	}
 
+	cmd.Flags().BoolVar(
+		&enableCheckboxDetection,
+		"enable-checkbox-detection",
+		false,
+		"flag to enable detecting ai use checkboxes in specified text",
+	)
+	cmd.Flags().StringVar(
+		&checkboxAIUsedLabel,
+		"cb-disclosed-ai",
+		detection.DefaultCheckboxAIUsedLabel,
+		"string label for checkbox for AI use declaration",
+	)
+	cmd.Flags().StringVar(
+		&checkboxAINotUsedLabel,
+		"cb-disclosed-noai",
+		detection.DefaultCheckboxAINotUsedLabel,
+		"string label for checkbox for no AI use declaration",
+	)
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
 

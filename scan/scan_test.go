@@ -24,6 +24,7 @@ func allDetectors() []detection.Detector {
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
+		// default checkbox labels used for toolmention since we didn't specify
 		&toolmention.Detector{ConfidenceLevels: confidenceLevels},
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
 	}
@@ -159,7 +160,7 @@ func TestScanCommitRange(t *testing.T) {
 	perDetectorScores := report.Summary.PerDetectorScores
 	committerScore := perDetectorScores["committer"]
 	if committerScore != 95 {
-		t.Errorf("expected committer score to be 85, found %f", committerScore)
+		t.Errorf("expected committer score to be 95, found %f", committerScore)
 	}
 	gitnotesScore := perDetectorScores["gitnotes"]
 	if gitnotesScore != 0 {
