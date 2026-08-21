@@ -1,6 +1,6 @@
-# CHAOSS AI Detection Tool
+# CHAOSS AI disclosure detection
 
-A standalone CLI tool and GitHub Action that detects AI-generated contributions in git repositories. It works entirely from git-level data (commit emails, messages, trailers) using [go-git](https://github.com/go-git/go-git), with no platform API dependencies in the core. A separate text-scanning mode lets wrappers pipe in PR descriptions, issue comments, or any other text.
+A standalone CLI tool and GitHub Action that detects disclosed AI-generated contributions in git repositories. It works entirely from git-level data (commit emails, messages, trailers) using [go-git](https://github.com/go-git/go-git), with no platform API dependencies in the core. A separate text-scanning mode lets wrappers pipe in PR descriptions, issue comments, or any other text.
 
 The goal is to help open source maintainers understand when AI tools are involved in contributions, and to give community health projects like [CollectOSS](https://github.com/chaoss/collectoss/) and [GrimoireLab](https://github.com/chaoss/grimoirelab/) a way to track AI usage across repositories.
 
@@ -8,27 +8,27 @@ The goal is to help open source maintainers understand when AI tools are involve
 
 The built-in detectors run against each commit, each producing findings at a confidence level:
 
-**High confidence** -- strong signals that an AI tool authored or co-authored the commit:
+- `Co-Authored-By` and `Assisted-By` trailers with known AI tool emails (Claude Code, Cursor, Aider).
+- Known commit trailers in formats unique to specific tools (such as Aider, EntireIO, Replit Agent/Assistant etc.) or footers (like `Generated with Claude Code`) that can contain values indicative of AI use.
 - Known AI bot committer emails (Claude, Copilot, Cursor, Codex, Gemini Code Assist, Amazon Q, Devin, Cline, Continue.dev, Cody, JetBrains AI, CodeRabbit). Also matches on the numeric prefix of GitHub noreply emails, so bot username renames don't break detection.
-- `Co-Authored-By` trailers with known AI tool emails (Claude Code, Cursor, Aider).
 - `git-ai` authorship logs stored in git notes under `refs/notes/ai`, including the attributed tool and model when available.
-- AI session ID trailers (such as Replit-Commit-Session-Id) combined with other known commit trailers, indicating that the commit was generated as part of an AI conversation or workflow.
-
-**Medium confidence** -- patterns in the commit message itself:
-- `aider:` prefix (Aider's default commit format).
-- `Generated with Claude Code` footer.
-- Known commit trailers in formats unique to specific tools (such as EntireIO, Replit Agent/Assistant) that can contain values indicative of AI use.
 - Branch names following conventions used by AI coding CLIs/agents (e.g. `codex/`, `claude/`, `cursor/`, `copilot/`, `devin/`, `cline/`, `aider/`, `gemini/`).
-
-
-**Low confidence** -- mentions of AI tool names in text:
-- Word-boundary matches for tool names like Claude, Copilot, Cursor, Aider, ChatGPT, Windsurf, Devin, etc. This detector also runs against commit messages, and is the primary detector for the text-scanning mode (PR bodies, comments).
+- AI session ID trailers (such as Replit-Commit-Session-Id) combined with other known commit trailers, indicating that the commit was generated as part of an AI conversation or workflow.
+- Mentions of tool names like Claude, Copilot, Cursor, Aider, ChatGPT, Windsurf, Devin, etc. This detector also runs against commit messages, and is the primary detector for the text-scanning mode (PR bodies, comments).
+- Disclosure of AI use from checkboxes in pull request description or comments, in text-scanning mode. Checkbox labels configurable by user.
 
 ## CLI usage
 
 ```
-disclosure scan [--range=BASE..HEAD] [--format=json|text] [--min-confidence=low|medium|high] [repo-path]
-disclosure text [--format=json|text] [--input=FILE|-]
+disclosure scan \
+	[--range=BASE..HEAD] [--format=json|text] \
+	[--min-confidence=low|medium|high] \
+	[--confidence-levels="low=30,medium=70,high=100"]
+	[repo-path]
+disclosure text \
+	[--format=json|text] [--input=FILE|-] \
+	[--checkbox-label-ai-used="AI was used"] \
+	[--checkbox-label-ai-not-used="AI was not used"]
 disclosure version
 ```
 
@@ -56,6 +56,11 @@ echo "I used Claude to write this PR" | disclosure text --format=json
 
 disclosure text --input=pr-body.txt
 ```
+
+### Numeric scoring
+
+Please see [SCORING.md](SCORING.md) for more information on disclosure's
+scoring methodology.
 
 ### Use as a CI gate
 
@@ -180,6 +185,11 @@ output/                 JSON and human-readable text formatters
 cmd/                    CLI subcommands
 action/                 GitHub Action (composite action + labeling)
 ```
+
+## Other AI disclosure/attribution tools
+
+- [AItrributor](https://github.com/block/aittributor) - Prepare-commit-msg hook that adds AI agent attribution to git commits.
+- [Usagescale](https://usagescale.org/) - An open standard for declaring how a work was made, whose knowledge it carries, and who stands behind it.
 
 ## Contributing
 
