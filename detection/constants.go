@@ -140,14 +140,19 @@ var SupportedToolsInMentions = []string{
 // KnownAgentBranchPrefixes maps branch name prefixes used by AI coding CLIs/agents
 // when they create their own branches (e.g. "codex/fix-bug") to tool names.
 var KnownAgentBranchPrefixes = map[string]string{
-	"codex/":   "OpenAI Codex",
-	"claude/":  "Claude",
-	"copilot/": "GitHub Copilot",
-	"cursor/":  "Cursor",
-	"devin/":   "Devin",
-	"cline/":   "Cline",
-	"aider/":   "Aider",
-	"gemini/":  "Gemini",
+	"codex/":     "OpenAI Codex",
+	"claude/":    "Claude",
+	"copilot/":   "GitHub Copilot",
+	"cursor/":    "Cursor",
+	"devin/":     "Devin",
+	"cline/":     "Cline",
+	"aider/":     "Aider",
+	"gemini/":    "Gemini",
+	"roo/":       "Roo Code",
+	"roo-code/":  "Roo Code",
+	"windsurf/":  "Windsurf",
+	"openhands/": "OpenHands",
+	"swe-agent/": "SWE-Agent",
 }
 
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers
@@ -156,6 +161,9 @@ var KnownCoAuthorEmails = map[string]string{
 	"cursoragent@cursor.com": "Cursor",
 	"noreply@aider.chat":     "Aider",
 	"copilot@github.com":     "Copilot",
+	"noreply@continue.dev":   "Continue.dev",
+	"noreply@windsurf.com":   "Windsurf",
+	"openhands@all-hands.dev": "OpenHands",
 }
 
 // CoAuthorPattern Regex to look for Co-Authored-By trailer with name and email
