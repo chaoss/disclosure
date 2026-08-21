@@ -58,6 +58,22 @@ func TestDetect(t *testing.T) {
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
+			name:           "coauthor: Continue.dev trailer",
+			message:        "feat: add feature\n\nCo-Authored-By: Continue <noreply@continue.dev>",
+			wantTools:      []string{"Continue.dev"},
+			wantModels:     []string{""},
+			wantScore:      []float64{75},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
+			name:           "coauthor: Windsurf trailer",
+			message:        "feat: add feature\n\nCo-Authored-By: Windsurf <noreply@windsurf.com>",
+			wantTools:      []string{"Windsurf"},
+			wantModels:     []string{""},
+			wantScore:      []float64{75},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
 			name:           "coauthor: Cursor trailer with parenthesized model",
 			message:        "refactor: extract method\n\nCo-Authored-By: Cursor (composer 2.5) <cursoragent@cursor.com>",
 			wantTools:      []string{"Cursor"},
