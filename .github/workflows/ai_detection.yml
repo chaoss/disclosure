@@ -30,5 +30,5 @@ jobs:
       with:
         min-confidence: 'medium'
         enable-checkbox-detection: 'true'
-        checkbox-label-ai-used: 'This PR uses AI/LLMs'
-        checkbox-label-ai-not-used: 'This PR does not use AI/LLMs'
+        cb-disclosed-ai: 'This PR uses AI/LLMs'
+        cb-disclosed-noai: 'This PR does not use AI/LLMs'

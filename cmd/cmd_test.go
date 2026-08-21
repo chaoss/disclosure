@@ -939,8 +939,8 @@ func TestRunTextCommandWithCheckboxDetection(t *testing.T) {
 				"text",
 				"--format=json",
 				"--enable-checkbox-detection",
-				"--checkbox-label-ai-used=" + tt.usedLabel,
-				"--checkbox-label-ai-not-used=" + tt.notUsedLabel,
+				"--cb-disclosed-ai=" + tt.usedLabel,
+				"--cb-disclosed-noai=" + tt.notUsedLabel,
 				"--input=" + file,
 			}, &stdout, &stderr)
 			if code != int(tt.wantExitCode) {

@@ -287,8 +287,8 @@ Examples:
   # Use checkbox labels
   disclosure text \
 	--enable-checkbox-detection
-	--checkbox-label-ai-used="AI was used in this PR" \
-	--checkbox-label-ai-not-used="AI was not used in this PR" \
+	--cb-disclosed-ai="AI was used in this PR" \
+	--cb-disclosed-noai="AI was not used in this PR" \
 	--input=pr-body.txt
   `,
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -348,13 +348,13 @@ Examples:
 	)
 	cmd.Flags().StringVar(
 		&checkboxAIUsedLabel,
-		"checkbox-label-ai-used",
+		"cb-disclosed-ai",
 		detection.DefaultCheckboxAIUsedLabel,
 		"string label for checkbox for AI use declaration",
 	)
 	cmd.Flags().StringVar(
 		&checkboxAINotUsedLabel,
-		"checkbox-label-ai-not-used",
+		"cb-disclosed-noai",
 		detection.DefaultCheckboxAINotUsedLabel,
 		"string label for checkbox for no AI use declaration",
 	)

@@ -29,11 +29,11 @@ inputs:
     description: 'Enable detection of checkboxes that declare AI was used or not.'
     required: false
     default: 'false'
-  checkbox-label-ai-used:
+  cb-disclosed-ai:
     description: 'Label for checkbox in PR description for user to declare that AI was used'
     required: false
     default: 'This contribution was assisted or created by Generative AI tools.'
-  checkbox-label-ai-not-used:
+  cb-disclosed-noai:
     description: 'Label for checkbox in PR description for user to declare that AI was not used'
     required: false
     default: 'This contribution was NOT assisted or created by Generative AI tools.'
@@ -66,8 +66,8 @@ runs:
         MIN_CONFIDENCE: ${{ inputs.min-confidence }}
         SCAN_PR_BODY: ${{ inputs.scan-pr-body }}
         ENABLE_CHECKBOX_DETECTION: ${{ inputs.enable-checkbox-detection }}
-        CHECKBOX_LABEL_AI_USED: ${{ inputs.checkbox-label-ai-used }}
-        CHECKBOX_LABEL_AI_NOT_USED: ${{ inputs.checkbox-label-ai-not-used }}
+        CHECKBOX_LABEL_AI_USED: ${{ inputs.cb-disclosed-ai }}
+        CHECKBOX_LABEL_AI_NOT_USED: ${{ inputs.cb-disclosed-noai }}
         PR_BODY: ${{ github.event.pull_request.body }}
         BASE_SHA: ${{ github.event.pull_request.base.sha }}
         HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -96,8 +96,8 @@ runs:
           fi
           TEXT_REPORT=$(echo "${PR_BODY}" | ${{ runner.temp }}/ai-detection text \
             --format=json ${CHECKBOX_DETECTION_FLAG} \
-            --checkbox-label-ai-used="${CHECKBOX_LABEL_AI_USED}" \
-            --checkbox-label-ai-not-used="${CHECKBOX_LABEL_AI_NOT_USED}") || TEXT_EXIT=$?
+            --cb-disclosed-ai="${CHECKBOX_LABEL_AI_USED}" \
+            --cb-disclosed-noai="${CHECKBOX_LABEL_AI_NOT_USED}") || TEXT_EXIT=$?
           if [ "${TEXT_EXIT:-0}" = "1" ]; then
             AI_DETECTED=true
           fi
