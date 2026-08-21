@@ -52,6 +52,13 @@ func TestDetect(t *testing.T) {
 			wantConfidence: detection.ConfidenceLow,
 		},
 		{
+			name:           "cursor grok model mentioned",
+			input:          detection.Input{Text: "Assisted by Cursor Grok 4.6"},
+			wantTools:      []string{"Cursor Grok 4.6"},
+			wantScore:      20,
+			wantConfidence: detection.ConfidenceLow,
+		},
+		{
 			name:           "case insensitive",
 			input:          detection.Input{Text: "I used CLAUDE to write this"},
 			wantTools:      []string{"Claude"},

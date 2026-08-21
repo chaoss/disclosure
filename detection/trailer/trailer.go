@@ -147,6 +147,15 @@ func extractCoauthorModel(tool, namePart string) string {
 			return strings.TrimSpace(namePart[len("Claude "):])
 		}
 		return namePart
+	case "Cursor":
+		if strings.EqualFold(namePart, "Cursor") {
+			return ""
+		}
+		namePartLower := strings.ToLower(namePart)
+		if strings.HasPrefix(namePartLower, "cursor ") {
+			return strings.TrimSpace(namePart[len("Cursor "):])
+		}
+		return namePart
 	}
 
 	return ""

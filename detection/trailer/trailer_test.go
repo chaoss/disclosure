@@ -66,6 +66,14 @@ func TestDetect(t *testing.T) {
 			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
 		},
 		{
+			name:           "coauthor: Cursor trailer with Grok model prefix",
+			message:        "refactor: extract method\n\nCo-Authored-By: Cursor Grok 4.6 <cursoragent@cursor.com>",
+			wantTools:      []string{"Cursor"},
+			wantModels:     []string{"Grok 4.6"},
+			wantScore:      []float64{85},
+			wantConfidence: []detection.Confidence{detection.ConfidenceHigh},
+		},
+		{
 			name:           "coauthor: Copilot trailer with parenthesized model",
 			message:        "feat: add endpoint\n\nCo-Authored-By: Copilot (gpt-4.1) <copilot@github.com>",
 			wantTools:      []string{"Copilot"},
