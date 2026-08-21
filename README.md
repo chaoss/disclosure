@@ -1,5 +1,7 @@
 # CHAOSS AI disclosure detection
 
+[![Go.Dev reference](https://img.shields.io/badge/go.dev-reference-blue?logo=go&logoColor=white)](https://pkg.go.dev/github.com/chaoss/disclosure#section-readme)
+
 A standalone CLI tool and GitHub Action that detects disclosed AI-generated contributions in git repositories. It works entirely from git-level data (commit emails, messages, trailers) using [go-git](https://github.com/go-git/go-git), with no platform API dependencies in the core. A separate text-scanning mode lets wrappers pipe in PR descriptions, issue comments, or any other text.
 
 The goal is to help open source maintainers understand when AI tools are involved in contributions, and to give community health projects like [CollectOSS](https://github.com/chaoss/collectoss/) and [GrimoireLab](https://github.com/chaoss/grimoirelab/) a way to track AI usage across repositories.
