@@ -163,6 +163,7 @@ var KnownCoAuthorEmails = map[string]string{
 	"copilot@github.com":     "Copilot",
 	"noreply@continue.dev":   "Continue.dev",
 	"noreply@windsurf.com":   "Windsurf",
+	"openhands@all-hands.dev": "OpenHands",
 }
 
 // CoAuthorPattern Regex to look for Co-Authored-By trailer with name and email
