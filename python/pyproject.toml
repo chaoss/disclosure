@@ -14,6 +14,9 @@ requires-python = ">=3.9"
 # Matches the upstream LICENSE file (bare GPL-3.0 text => -only under SPDX).
 # Confirm -only vs -or-later with the maintainers before this leaves PoC status.
 license = "GPL-3.0-only"
+# Ship the license text in both the wheel (.dist-info/licenses/) and the sdist.
+# LICENSE is a copy of the repository root LICENSE (kept in sync).
+license-files = ["LICENSE"]
 keywords = ["chaoss", "ai-disclosure", "ai-detection"]
 classifiers = [
   "Development Status :: 3 - Alpha",

@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import disclosure  # noqa: E402
 from disclosure import _binary  # noqa: E402
+from disclosure import __main__ as cli  # noqa: E402
 
 pytestmark = pytest.mark.skipif(
     os.name == "nt", reason="stub binary uses a POSIX shell script"
@@ -110,3 +111,59 @@ def test_text_input_file_uses_input_flag(stub_binary, monkeypatch):
 def test_text_rejects_both_content_and_file(stub_binary):
     with pytest.raises(ValueError):
         disclosure.text("hi", input_file="pr-body.txt")
+
+
+# --- Binary-resolution / checksum failure handling ---------------------------
+
+
+def test_main_returns_2_on_binary_resolution_failure(monkeypatch, capsys):
+    """A download/cache failure must exit 2 (error), not 1 ('AI detected')."""
+
+    def boom():
+        raise _binary.BinaryResolutionError("download failed")
+
+    monkeypatch.setattr(cli, "binary_path", boom)
+
+    assert cli.main() == 2
+    assert "download failed" in capsys.readouterr().err
+
+
+def test_expected_sha256_raises_when_checksums_unavailable(monkeypatch):
+    """checksums.txt unreachable => fail closed rather than skip verification."""
+
+    def boom(url):
+        raise _binary.BinaryResolutionError("network down")
+
+    monkeypatch.setattr(_binary, "_download", boom)
+
+    with pytest.raises(_binary.BinaryResolutionError):
+        _binary._expected_sha256("linux", "amd64")
+
+
+def test_expected_sha256_raises_when_asset_missing(monkeypatch):
+    """checksums.txt present but missing this archive => fail closed."""
+    monkeypatch.setattr(
+        _binary,
+        "_download",
+        lambda url: b"deadbeef  disclosure_1.0.0_windows_arm64.tar.gz\n",
+    )
+
+    with pytest.raises(_binary.BinaryResolutionError):
+        _binary._expected_sha256("linux", "amd64")
+
+
+def test_fetch_fails_closed_without_checksum(tmp_path, monkeypatch):
+    """_fetch must not cache/execute the archive when no checksum is available."""
+
+    def fake_download(url):
+        if url.endswith("checksums.txt"):
+            raise _binary.BinaryResolutionError("no checksums")
+        return b"fake archive bytes"
+
+    monkeypatch.setattr(_binary, "_download", fake_download)
+
+    dest = tmp_path / "disclosure"
+    with pytest.raises(_binary.BinaryResolutionError):
+        _binary._fetch("linux", "amd64", dest)
+
+    assert not dest.exists()

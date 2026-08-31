@@ -73,21 +73,26 @@ def _download(url: str) -> bytes:
         raise BinaryResolutionError(f"failed to download {url}: {exc}") from exc
 
 
-def _expected_sha256(goos: str, goarch: str) -> str | None:
-    """Look up the archive's checksum from the release checksums.txt."""
+def _expected_sha256(goos: str, goarch: str) -> str:
+    """Look up the archive's checksum from the release ``checksums.txt``.
+
+    Fails closed: if ``checksums.txt`` cannot be downloaded (``_download``
+    raises) or does not list this archive, raise rather than let an unverified
+    binary be cached and executed.
+    """
     url = _RELEASE_URL.format(
         version=DISCLOSURE_VERSION, asset="checksums.txt"
     )
     archive = f"disclosure_{DISCLOSURE_VERSION}_{goos}_{goarch}.tar.gz"
-    try:
-        text = _download(url).decode("utf-8")
-    except BinaryResolutionError:
-        return None  # checksums are best-effort; don't block the PoC if absent
+    text = _download(url).decode("utf-8")
     for line in text.splitlines():
         parts = line.split()
         if len(parts) == 2 and parts[1] == archive:
             return parts[0]
-    return None
+    raise BinaryResolutionError(
+        f"no checksum listed for {archive} in checksums.txt; "
+        f"refusing to run an unverified binary"
+    )
 
 
 def _fetch(goos: str, goarch: str, dest: Path) -> None:
@@ -95,13 +100,15 @@ def _fetch(goos: str, goarch: str, dest: Path) -> None:
     url = _RELEASE_URL.format(version=DISCLOSURE_VERSION, asset=archive)
     blob = _download(url)
 
+    # Verify before extracting/caching. _expected_sha256 fails closed, so a
+    # missing or unreachable checksums.txt aborts the fetch rather than
+    # silently running an unverified download.
     expected = _expected_sha256(goos, goarch)
-    if expected is not None:
-        actual = hashlib.sha256(blob).hexdigest()
-        if actual != expected:
-            raise BinaryResolutionError(
-                f"checksum mismatch for {archive}: expected {expected}, got {actual}"
-            )
+    actual = hashlib.sha256(blob).hexdigest()
+    if actual != expected:
+        raise BinaryResolutionError(
+            f"checksum mismatch for {archive}: expected {expected}, got {actual}"
+        )
 
     name = _binary_name(goos)
     dest.parent.mkdir(parents=True, exist_ok=True)

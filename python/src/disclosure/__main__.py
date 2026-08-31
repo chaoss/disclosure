@@ -17,7 +17,10 @@ def main() -> int:
         binary = binary_path()
     except BinaryResolutionError as exc:
         print(f"disclosure: {exc}", file=sys.stderr)
-        return 1
+        # Exit 2 (error), never 1: the native CLI reserves exit code 1 for
+        # "AI detected", so a download/cache failure must not masquerade as a
+        # successful scan to callers keying off the exit status.
+        return 2
     # Inherit stdio so pipes (`... | disclosure text`) and TTY output work.
     return subprocess.run([str(binary), *sys.argv[1:]]).returncode
 
