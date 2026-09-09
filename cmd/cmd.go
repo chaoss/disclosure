@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,6 +25,32 @@ import (
 )
 
 var Version = "dev"
+
+// resolveVersion returns the CLI version to display. Release builds inject the
+// version at link time via ldflags (-X ...cmd.Version=...). When that has not
+// happened, fall back to the module version recorded in binary's build info.
+func resolveVersion() string {
+	return versionFrom(Version, readBuildVersion)
+}
+
+// versionFrom selects the version string, preferring an ldflags override and
+// otherwise using the build-info version. It is split out for testability.
+func versionFrom(override string, buildVersion func() string) string {
+	if override != "dev" && override != "" {
+		return override
+	}
+	if bv := buildVersion(); bv != "" && bv != "(devel)" {
+		return bv
+	}
+	return "dev"
+}
+
+func readBuildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		return info.Main.Version
+	}
+	return ""
+}
 
 // Exit codes
 const (
@@ -376,7 +403,7 @@ Examples:
 		Example: `  disclosure version
   disclosure version --format=json`,
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Fprintf(stdout, "disclosure %s\n", Version)
+			fmt.Fprintf(stdout, "disclosure %s\n", resolveVersion())
 			*exitCode = ExitNoAI
 		},
 	}
