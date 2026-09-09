@@ -255,6 +255,8 @@ func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var checkboxAIUsedLabel string
 	var checkboxAINotUsedLabel string
 	var enableCheckboxDetection bool
+	var minConfFlag string
+	var confidenceLevelsFlag string
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -286,7 +288,7 @@ Examples:
 
   # Use checkbox labels
   disclosure text \
-	--enable-checkbox-detection
+	--enable-checkbox-detection \
 	--cb-disclosed-ai="AI was used in this PR" \
 	--cb-disclosed-noai="AI was not used in this PR" \
 	--input=pr-body.txt
@@ -306,12 +308,48 @@ Examples:
 				return err
 			}
 
-			detectors := allDetectors(detection.GetDefaultConfidenceLevels(), detectorConfig{
+			minConf, err := detection.ConfidenceFromString(minConfFlag)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				*exitCode = ExitError
+				return err
+			}
+
+			// parse confidence-levels override if provided
+			confidenceLevels := detection.GetDefaultConfidenceLevels()
+			if strings.TrimSpace(confidenceLevelsFlag) != "" {
+				flagMap, err := parseKeyValueFloatList(confidenceLevelsFlag)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+				if confidenceLevels, err = detection.SetConfidenceLevelsFromStrings(
+					confidenceLevels,
+					flagMap,
+				); err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+			}
+
+			detectors := allDetectors(confidenceLevels, detectorConfig{
 				checkboxAIUsedLabel:     checkboxAIUsedLabel,
 				checkboxAINotUsedLabel:  checkboxAINotUsedLabel,
 				enableCheckboxDetection: enableCheckboxDetection,
 			})
 			findings := scan.ScanText(string(textBytes), detectors)
+
+			if minConf > detection.ConfidenceLow {
+				var filtered []detection.Finding
+				for _, f := range findings {
+					if f.Confidence >= minConf {
+						filtered = append(filtered, f)
+					}
+				}
+				findings = filtered
+			}
 
 			switch formatFlag {
 			case "json":
@@ -360,6 +398,8 @@ Examples:
 	)
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
+	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
 }
