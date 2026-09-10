@@ -3,6 +3,7 @@ package gitops
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -122,6 +123,92 @@ func TestListCommitsRange(t *testing.T) {
 	}
 	if commitHashes[hashes[0]] {
 		t.Error("base commit should be excluded from range")
+	}
+}
+
+func TestListCommitsRangeAbbreviatedHashes(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	commits, err := ListCommits(dir, hashes[0][:7]+".."+hashes[2][:7])
+	if err != nil {
+		t.Fatalf("ListCommits: %v", err)
+	}
+
+	if len(commits) != 2 {
+		t.Fatalf("got %d commits, want 2", len(commits))
+	}
+}
+
+func TestResolveRefAbbreviatedHash(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+	repo, err := git.PlainOpen(dir)
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+
+	for _, name := range []string{
+		hashes[1][:8],
+		hashes[1][:7],
+		strings.ToUpper(hashes[1][:7]),
+	} {
+		t.Run(name, func(t *testing.T) {
+			got, err := resolveRef(repo, name)
+			if err != nil {
+				t.Fatalf("resolveRef(%q): %v", name, err)
+			}
+			if got.String() != hashes[1] {
+				t.Fatalf("resolveRef(%q) = %s, want %s", name, got, hashes[1])
+			}
+		})
+	}
+}
+
+func TestResolveRefRejectsAmbiguousAbbreviatedHash(t *testing.T) {
+	dir, _ := initTestRepo(t)
+	repo, err := git.PlainOpen(dir)
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+
+	// These blob contents have distinct hashes sharing the prefix b285.
+	for _, content := range []string{"collision candidate 235", "collision candidate 319"} {
+		obj := &plumbing.MemoryObject{}
+		obj.SetType(plumbing.BlobObject)
+		writer, err := obj.Writer()
+		if err != nil {
+			t.Fatalf("object writer: %v", err)
+		}
+		if _, err := writer.Write([]byte(content)); err != nil {
+			t.Fatalf("write object: %v", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatalf("close object: %v", err)
+		}
+		if _, err := repo.Storer.SetEncodedObject(obj); err != nil {
+			t.Fatalf("store object: %v", err)
+		}
+	}
+
+	_, err = resolveRef(repo, "b285")
+	if err == nil || !strings.Contains(err.Error(), "ambiguous abbreviated hash") {
+		t.Fatalf("resolveRef() error = %v, want ambiguity error", err)
+	}
+}
+
+func TestResolveRefRejectsInvalidAbbreviatedHashes(t *testing.T) {
+	dir, _ := initTestRepo(t)
+	repo, err := git.PlainOpen(dir)
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+
+	for _, name := range []string{"abc", "not-a-hash", "deadbeef"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := resolveRef(repo, name)
+			if err == nil || !strings.Contains(err.Error(), "cannot resolve") {
+				t.Fatalf("resolveRef(%q) error = %v, want resolution error", name, err)
+			}
+		})
 	}
 }
 

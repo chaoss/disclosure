@@ -1,6 +1,7 @@
 package gitops
 
 import (
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -121,8 +122,85 @@ func resolveRef(repo *git.Repository, name string) (plumbing.Hash, error) {
 		}
 	}
 
-	// Try as abbreviated hash by iterating objects (go-git doesn't support short hashes natively)
-	return plumbing.Hash{}, fmt.Errorf("cannot resolve %q to a commit", name)
+	// go-git does not resolve abbreviated object IDs, so match unique prefixes
+	// across all object types. Git requires at least four hexadecimal digits
+	// for an abbreviated object name.
+	const minAbbreviatedHashLength = 4
+	if len(name) < minAbbreviatedHashLength || len(name) >= len(plumbing.ZeroHash)*2 ||
+		!isHex(name) {
+		return plumbing.Hash{}, fmt.Errorf("cannot resolve %q to a commit", name)
+	}
+
+	prefix := strings.ToLower(name)
+	matches, err := hashesWithPrefix(repo, prefix)
+	if err != nil {
+		return plumbing.Hash{}, err
+	}
+	if len(matches) == 0 {
+		return plumbing.Hash{}, fmt.Errorf("cannot resolve %q to a commit", name)
+	}
+	if len(matches) > 1 {
+		return plumbing.Hash{}, fmt.Errorf("ambiguous abbreviated hash %q", name)
+	}
+
+	return matches[0], nil
+}
+
+func hashesWithPrefix(repo *git.Repository, prefix string) ([]plumbing.Hash, error) {
+	// Filesystem storage has an indexed prefix lookup that handles both loose
+	// and packed objects. Keep an iterator fallback for other storage backends.
+	type prefixStorer interface {
+		HashesWithPrefix([]byte) ([]plumbing.Hash, error)
+	}
+
+	evenHex := prefix[:len(prefix)&^1]
+	prefixBytes, err := hex.DecodeString(evenHex)
+	if err != nil {
+		return nil, fmt.Errorf("decoding abbreviated hash %q: %w", prefix, err)
+	}
+
+	if storer, ok := repo.Storer.(prefixStorer); ok {
+		candidates, err := storer.HashesWithPrefix(prefixBytes)
+		if err != nil {
+			return nil, fmt.Errorf("resolving abbreviated hash %q: %w", prefix, err)
+		}
+		matches := candidates[:0]
+		for _, hash := range candidates {
+			if strings.HasPrefix(hash.String(), prefix) {
+				matches = append(matches, hash)
+			}
+		}
+		return matches, nil
+	}
+
+	iter, err := repo.Storer.IterEncodedObjects(plumbing.AnyObject)
+	if err != nil {
+		return nil, fmt.Errorf("iterating objects: %w", err)
+	}
+
+	var matches []plumbing.Hash
+	err = iter.ForEach(func(obj plumbing.EncodedObject) error {
+		hash := obj.Hash()
+		if strings.HasPrefix(hash.String(), prefix) {
+			matches = append(matches, hash)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("iterating objects: %w", err)
+	}
+	return matches, nil
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		if !('0' <= r && r <= '9') &&
+			!('a' <= r && r <= 'f') &&
+			!('A' <= r && r <= 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 func listAllCommits(repo *git.Repository) ([]Commit, error) {
