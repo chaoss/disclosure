@@ -353,13 +353,13 @@ Examples:
 
 			switch formatFlag {
 			case "json":
-				if err := output.FormatJSONFindings(stdout, findings); err != nil {
+				if err := output.FormatJSONFindings(stdout, findings, confidenceLevels); err != nil {
 					fmt.Fprintf(stderr, "error: %v\n", err)
 					*exitCode = ExitError
 					return err
 				}
 			case "text":
-				if err := output.FormatTextFindings(stdout, findings); err != nil {
+				if err := output.FormatTextFindings(stdout, findings, confidenceLevels); err != nil {
 					fmt.Fprintf(stderr, "error: %v\n", err)
 					*exitCode = ExitError
 					return err

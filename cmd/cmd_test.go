@@ -301,17 +301,69 @@ func TestRunTextCommandCustomConfidenceLevels(t *testing.T) {
 	file := filepath.Join(tmp, "input.txt")
 	os.WriteFile(file, []byte("I used Claude to write this"), 0644)
 
-	// Tool mention score is 20. Overriding medium to 15 promotes score 20 to medium confidence.
+	// Tool mention score is 20. Overriding low=10, medium=25 promotes score 20 to medium confidence (10 < 20 <= 25).
+	// Aggregate confidence should also be reported as medium.
 	{
 		var stdout, stderr bytes.Buffer
 		code := Run([]string{
 			"text",
 			"--input=" + file,
-			"--confidence-levels=low=10,medium=15,high=50",
+			"--confidence-levels=low=10,medium=25,high=50",
 			"--min-confidence=medium",
 		}, &stdout, &stderr)
 		if code != ExitAI {
 			t.Errorf("custom confidence levels: code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// Reviewer example: low=10,medium=25,high=50 returns a medium finding (score 20 <= 25).
+	// Aggregate confidence must be reported as medium, not default low.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels (low=10,medium=25,high=50): code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// JSON format should report aggregate confidence as medium when using custom thresholds.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--format=json",
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels JSON: code = %d, want %d", code, ExitAI)
+		}
+		var result struct {
+			Findings   []detection.Finding  `json:"findings"`
+			Score      float64              `json:"score"`
+			Confidence detection.Confidence `json:"confidence"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if result.Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON aggregate confidence: got %v, want %v", result.Confidence, detection.ConfidenceMedium)
+		}
+		if len(result.Findings) != 1 {
+			t.Fatalf("custom confidence levels JSON findings: got %d, want 1", len(result.Findings))
+		}
+		if result.Findings[0].Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON finding confidence: got %v, want %v", result.Findings[0].Confidence, detection.ConfidenceMedium)
 		}
 	}
 
