@@ -232,6 +232,155 @@ func TestRunTextCommandNoAI(t *testing.T) {
 	}
 }
 
+func TestRunTextCommandMinConfidence(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "input.txt")
+	os.WriteFile(file, []byte("I used Claude to write this"), 0644)
+
+	// Tool mention has score 20 (low confidence).
+	// Default / low min-confidence should detect AI.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + file, "--min-confidence=low"}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("min-confidence=low: code = %d, want %d", code, ExitAI)
+		}
+	}
+
+	// Medium min-confidence should filter out low-confidence tool mention.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + file, "--min-confidence=medium"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+		if !strings.Contains(stdout.String(), "No AI involvement detected.") {
+			t.Errorf("min-confidence=medium: expected 'No AI involvement detected.', got: %s", stdout.String())
+		}
+	}
+
+	// High min-confidence should also filter out low-confidence tool mention.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + file, "--min-confidence=high"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("min-confidence=high: code = %d, want %d", code, ExitNoAI)
+		}
+	}
+
+	// JSON format with medium min-confidence should return empty findings.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + file, "--format=json", "--min-confidence=medium"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("JSON min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+		var result struct {
+			Findings []detection.Finding `json:"findings"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if len(result.Findings) != 0 {
+			t.Errorf("JSON min-confidence=medium: got %d findings, want 0", len(result.Findings))
+		}
+	}
+
+	// Invalid min-confidence should return ExitError.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + file, "--min-confidence=bogus"}, &stdout, &stderr)
+		if code != ExitError {
+			t.Errorf("min-confidence=bogus: code = %d, want %d", code, ExitError)
+		}
+	}
+}
+
+func TestRunTextCommandCustomConfidenceLevels(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "input.txt")
+	os.WriteFile(file, []byte("I used Claude to write this"), 0644)
+
+	// Tool mention score is 20. Overriding low=10, medium=25 promotes score 20 to medium confidence (10 < 20 <= 25).
+	// Aggregate confidence should also be reported as medium.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=low=10,medium=25,high=50",
+			"--min-confidence=medium",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels: code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// Reviewer example: low=10,medium=25,high=50 returns a medium finding (score 20 <= 25).
+	// Aggregate confidence must be reported as medium, not default low.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels (low=10,medium=25,high=50): code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// JSON format should report aggregate confidence as medium when using custom thresholds.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--format=json",
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels JSON: code = %d, want %d", code, ExitAI)
+		}
+		var result struct {
+			Findings   []detection.Finding  `json:"findings"`
+			Score      float64              `json:"score"`
+			Confidence detection.Confidence `json:"confidence"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if result.Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON aggregate confidence: got %v, want %v", result.Confidence, detection.ConfidenceMedium)
+		}
+		if len(result.Findings) != 1 {
+			t.Fatalf("custom confidence levels JSON findings: got %d, want 1", len(result.Findings))
+		}
+		if result.Findings[0].Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON finding confidence: got %v, want %v", result.Findings[0].Confidence, detection.ConfidenceMedium)
+		}
+	}
+
+	// Invalid confidence-levels format should return ExitError.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=invalid",
+		}, &stdout, &stderr)
+		if code != ExitError {
+			t.Errorf("invalid confidence-levels: code = %d, want %d", code, ExitError)
+		}
+	}
+}
+
 func TestRunScanInvalidRepo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", t.TempDir()}, &stdout, &stderr)
