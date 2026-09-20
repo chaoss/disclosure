@@ -37,6 +37,14 @@ inputs:
     description: 'Label for checkbox in PR description for user to declare that AI was not used'
     required: false
     default: 'This contribution was NOT assisted or created by Generative AI tools.'
+  retitling-enabled:
+    description: 'Enable/disable re-titling the PR/issue when AI is detected'
+    required: false
+    default: 'false'
+  title-prefix:
+    description: 'Prefix to prepend to the PR/issue title when AI is detected (e.g. "[AI Detected] ")'
+    required: false
+    default: '[AI Detected] '
 
 outputs:
   ai-detected:
@@ -130,3 +138,17 @@ runs:
 
         # Apply the label to the PR
         gh pr edit "${PR_NUMBER}" --add-label "${LABEL}"
+
+    - name: Re-title PR/issue
+      if: steps.scan.outputs.ai-detected == 'true' && inputs.retitling-enabled == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TITLE_PREFIX: ${{ inputs.title-prefix }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        CURRENT_TITLE: ${{ github.event.pull_request.title }}
+      run: |
+        # Prepend prefix if not already present
+        if [[ "${CURRENT_TITLE}" != "${TITLE_PREFIX}"* ]]; then
+          gh pr edit "${PR_NUMBER}" --title "${TITLE_PREFIX}${CURRENT_TITLE}"
+        fi
