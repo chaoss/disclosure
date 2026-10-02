@@ -137,6 +137,7 @@ var SupportedToolsInMentions = []string{
 	"Nemotron",
 	"Salesforce Codegen",
 	"CodeWhisperer",
+	"OrbisAI Security",
 }
 
 // KnownAgentBranchPrefixes maps branch name prefixes used by AI coding CLIs/agents
@@ -189,6 +190,11 @@ var ReplitAttributionRegex = `(?m)^Replit-Commit-Author:\s*(Agent|Assistant)(?:\
 
 // ReplitAttributionPattern compiled pattern for Replit Agent or Assistant attribution
 var ReplitAttributionPattern = regexp.MustCompile(ReplitAttributionRegex)
+
+// OrbisAISignaturePattern Regex to detect the signature line the OrbisAI Security bot adds to commit messages
+var OrbisAISignaturePattern = regexp.MustCompile(
+	`(?im)^[ \t>*-]*automated security fix(?:[ \t]+generated)?[ \t]+by[ \t]+orbis(?:[ \t]*ai)?[ \t]*security(?:[ \t]*ai)?\b`,
+)
 
 // GitNotesAuthorshipPrefix Authorship prefix to check as a precondition in git notes
 var GitNotesAuthorshipPrefix = "authorship/"

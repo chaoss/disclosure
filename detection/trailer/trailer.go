@@ -99,6 +99,15 @@ var commitMessagePatterns = []struct {
 		},
 		name: "Replit",
 	},
+	{
+		check: func(msg string) (float64, bool) {
+			if detection.OrbisAISignaturePattern.MatchString(msg) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			return detection.TrailerNotMatchedScore, false
+		},
+		name: "OrbisAI Security",
+	},
 }
 
 type Detector struct {
