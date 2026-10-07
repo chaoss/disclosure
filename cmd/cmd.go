@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chaoss/disclosure/detection"
 	"github.com/chaoss/disclosure/detection/branchname"
@@ -27,6 +28,9 @@ import (
 )
 
 var Version = "dev"
+
+var scanProgressDelay = 10 * time.Second
+var testHookLoading func()
 
 // resolveVersion returns the CLI version to display. Release builds inject the
 // version at link time via ldflags (-X ...cmd.Version=...). When that has not
@@ -191,6 +195,7 @@ func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var minConfFlag string
 	var confidenceLevelsFlag string
+	var noProgressFlag bool
 
 	cmd := &cobra.Command{
 		Use:   "scan [repo-path]",
@@ -268,8 +273,40 @@ Examples:
 			if err != nil {
 				return err
 			}
-			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
+
+			var progress scan.ProgressFunc
+			progressShown := false
+			if !noProgressFlag {
+				startTime := time.Now()
+				progress = func(phase scan.ProgressPhase, done, total int) {
+					if testHookLoading != nil && phase == scan.PhaseLoading {
+						testHookLoading()
+					}
+					if !progressShown && time.Since(startTime) < scanProgressDelay {
+						return
+					}
+					progressShown = true
+					switch phase {
+					case scan.PhaseLoading:
+						fmt.Fprintf(stderr, "\rLoading commits: %d", done)
+					case scan.PhaseScanning:
+						pct := 0
+						if total > 0 {
+							pct = (done * 100) / total
+						}
+						fmt.Fprintf(stderr, "\rScanning commits: %d/%d (%d%%)", done, total, pct)
+						if done == total {
+							fmt.Fprintln(stderr)
+						}
+					}
+				}
+			}
+
+			report, err := scan.ScanCommitRangeWithProgress(repoPath, rangeFlag, detectors, progress)
 			if err != nil {
+				if progressShown {
+					fmt.Fprintln(stderr)
+				}
 				fmt.Fprintf(stderr, "error: %v\n", err)
 				*exitCode = ExitError
 				return err
@@ -308,6 +345,7 @@ Examples:
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
 	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
+	cmd.Flags().BoolVar(&noProgressFlag, "no-progress", false, "disable progress output")
 
 	return cmd
 }

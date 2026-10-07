@@ -546,3 +546,55 @@ func TestScanCommitEmptyDetectorList(t *testing.T) {
 		t.Errorf("score=%v want 0", result.Score)
 	}
 }
+
+type progressCall struct {
+	phase ProgressPhase
+	done  int
+	total int
+}
+
+func TestScanCommitRangeWithProgress(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+	detectors := allDetectors()
+
+	var calls []progressCall
+	progress := func(phase ProgressPhase, done, total int) {
+		calls = append(calls, progressCall{phase, done, total})
+	}
+
+	report, err := ScanCommitRangeWithProgress(dir, hashes[0]+".."+hashes[4], detectors, progress)
+	if err != nil {
+		t.Fatalf("ScanCommitRangeWithProgress: %v", err)
+	}
+	if len(report.Commits) != 4 {
+		t.Fatalf("expected 4 commits, got %d", len(report.Commits))
+	}
+	if len(calls) != 8 {
+		t.Fatalf("expected 8 progress calls (4 loading + 4 scanning), got %d", len(calls))
+	}
+	for i := 0; i < 4; i++ {
+		c := calls[i]
+		if c.phase != PhaseLoading || c.done != i+1 || c.total != 0 {
+			t.Errorf("loading call %d = %+v, want {PhaseLoading, %d, 0}", i, c, i+1)
+		}
+	}
+	for i := 0; i < 4; i++ {
+		c := calls[4+i]
+		if c.phase != PhaseScanning || c.done != i+1 || c.total != 4 {
+			t.Errorf("scanning call %d = %+v, want {PhaseScanning, %d, 4}", i, c, i+1)
+		}
+	}
+}
+
+func TestScanCommitRangeWithProgressNil(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+	detectors := allDetectors()
+
+	report, err := ScanCommitRangeWithProgress(dir, hashes[0]+".."+hashes[2], detectors, nil)
+	if err != nil {
+		t.Fatalf("ScanCommitRangeWithProgress: %v", err)
+	}
+	if len(report.Commits) != 2 {
+		t.Fatalf("expected 2 commits, got %d", len(report.Commits))
+	}
+}

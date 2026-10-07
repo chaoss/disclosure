@@ -47,17 +47,26 @@ func GetCommit(repoPath string, hash string) (Commit, error) {
 	return commitFromObject(c, repo), nil
 }
 
+// ProgressFunc is called as commits are loaded with the number of commits loaded so far.
+type ProgressFunc func(loaded int)
+
 // ListCommits returns commits in the given range. The range format is "BASE..HEAD"
 // where BASE and HEAD are commit hashes or ref names. If commitRange is empty,
 // all commits reachable from HEAD are returned.
 func ListCommits(repoPath string, commitRange string) ([]Commit, error) {
+	return ListCommitsWithProgress(repoPath, commitRange, nil)
+}
+
+// ListCommitsWithProgress returns commits in the given range, calling progress
+// as commits are loaded if progress is non-nil.
+func ListCommitsWithProgress(repoPath string, commitRange string, progress ProgressFunc) ([]Commit, error) {
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("opening repo: %w", err)
 	}
 
 	if commitRange == "" {
-		return listAllCommits(repo)
+		return listAllCommits(repo, progress)
 	}
 
 	parts := strings.SplitN(commitRange, "..", 2)
@@ -78,7 +87,7 @@ func ListCommits(repoPath string, commitRange string) ([]Commit, error) {
 		return nil, fmt.Errorf("resolving head %q: %w", headName, err)
 	}
 
-	return listCommitRange(repo, baseHash, headHash)
+	return listCommitRange(repo, baseHash, headHash, progress)
 }
 
 // GetCurrentBranch returns the short name of the branch currently checked out
@@ -203,7 +212,7 @@ func isHex(s string) bool {
 	return true
 }
 
-func listAllCommits(repo *git.Repository) ([]Commit, error) {
+func listAllCommits(repo *git.Repository, progress ProgressFunc) ([]Commit, error) {
 	head, err := repo.Head()
 	if err != nil {
 		return nil, fmt.Errorf("getting HEAD: %w", err)
@@ -217,6 +226,9 @@ func listAllCommits(repo *git.Repository) ([]Commit, error) {
 	var commits []Commit
 	err = iter.ForEach(func(c *object.Commit) error {
 		commits = append(commits, commitFromObject(c, repo))
+		if progress != nil {
+			progress(len(commits))
+		}
 		return nil
 	})
 	if err != nil {
@@ -289,7 +301,7 @@ func readNote(repo *git.Repository, commitHash plumbing.Hash) string {
 	return ""
 }
 
-func listCommitRange(repo *git.Repository, base, head plumbing.Hash) ([]Commit, error) {
+func listCommitRange(repo *git.Repository, base, head plumbing.Hash, progress ProgressFunc) ([]Commit, error) {
 	// Collect all commits reachable from head
 	headCommit, err := repo.CommitObject(head)
 	if err != nil {
@@ -317,6 +329,9 @@ func listCommitRange(repo *git.Repository, base, head plumbing.Hash) ([]Commit, 
 			return nil
 		}
 		commits = append(commits, commitFromObject(c, repo))
+		if progress != nil {
+			progress(len(commits))
+		}
 		return nil
 	})
 	if err != nil {

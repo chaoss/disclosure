@@ -287,3 +287,31 @@ func TestGetCurrentBranchInvalidRepo(t *testing.T) {
 		t.Error("expected error for non-repo directory")
 	}
 }
+
+func TestListCommitsWithProgress(t *testing.T) {
+	dir, hashes := initTestRepo(t)
+
+	var loadedCalls []int
+	progress := func(loaded int) {
+		loadedCalls = append(loadedCalls, loaded)
+	}
+
+	commits, err := ListCommitsWithProgress(dir, "", progress)
+	if err != nil {
+		t.Fatalf("ListCommitsWithProgress: %v", err)
+	}
+
+	if len(commits) != len(hashes) {
+		t.Fatalf("got %d commits, want %d", len(commits), len(hashes))
+	}
+
+	if len(loadedCalls) != len(hashes) {
+		t.Fatalf("expected %d progress calls, got %d", len(hashes), len(loadedCalls))
+	}
+
+	for i, count := range loadedCalls {
+		if count != i+1 {
+			t.Errorf("call %d = %d, want %d", i, count, i+1)
+		}
+	}
+}
