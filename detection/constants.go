@@ -137,6 +137,8 @@ var SupportedToolsInMentions = []string{
 	"Nemotron",
 	"Salesforce Codegen",
 	"CodeWhisperer",
+	"Codebuff",
+	"Freebuff",
 }
 
 // KnownAgentBranchPrefixes maps branch name prefixes used by AI coding CLIs/agents
@@ -158,6 +160,8 @@ var KnownCoAuthorEmails = map[string]string{
 	"cursoragent@cursor.com": "Cursor",
 	"noreply@aider.chat":     "Aider",
 	"copilot@github.com":     "Copilot",
+	"noreply@codebuff.com":   "Codebuff",
+	"noreply@freebuff.com":   "Freebuff",
 }
 
 // CoAuthorPattern Regex to look for Co-Authored-By trailer with name and email
@@ -171,6 +175,15 @@ var AiderCommitPrefix = "aider:"
 
 // ClaudeAttributionText
 var ClaudeAttributionText = "Generated with Claude Code"
+
+// CodebuffAttributionText commit message text added by Codebuff
+var CodebuffAttributionText = "Generated with Codebuff"
+
+// FreebuffAttributionText commit message text added by Freebuff
+var FreebuffAttributionText = "Generated with Freebuff"
+
+// FreebuffGeneratedWithPattern matches the Freebuff-style "Generated with: github.com/<user>/<repo>@<sha>" trailer
+var FreebuffGeneratedWithPattern = regexp.MustCompile(`(?im)Generated with:\s+github\.com/[^/]+/[^@\s]*(?:codebuff|freebuff)[^@\s]*@[0-9a-f]+`)
 
 // EntireIOTrailers List of EntireIO related trailers to check for
 var EntireIOTrailers = []string{

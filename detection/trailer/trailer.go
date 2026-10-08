@@ -99,6 +99,27 @@ var commitMessagePatterns = []struct {
 		},
 		name: "Replit",
 	},
+	{
+		check: func(msg string) (float64, bool) {
+			if strings.Contains(msg, detection.CodebuffAttributionText) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			return detection.TrailerNotMatchedScore, false
+		},
+		name: "Codebuff",
+	},
+	{
+		check: func(msg string) (float64, bool) {
+			if strings.Contains(msg, detection.FreebuffAttributionText) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			if detection.FreebuffGeneratedWithPattern.MatchString(msg) {
+				return detection.TrailerMatchBaseScore, true
+			}
+			return detection.TrailerNotMatchedScore, false
+		},
+		name: "Freebuff",
+	},
 }
 
 type Detector struct {
