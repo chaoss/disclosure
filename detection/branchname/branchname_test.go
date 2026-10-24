@@ -50,7 +50,12 @@ func TestDetectNoMatch(t *testing.T) {
 	cases := []string{
 		"main",
 		"feature/add-login",
-		"fix-codex-typo", // "codex" appears, but not as a branch prefix
+		"fix-codex-typo",        // "codex" appears, but not as a branch prefix
+		"rooster/fix-bug",       // starts with "roo", but not "roo/"
+		"windsurfer/refactor",   // starts with "windsurf", but not "windsurf/"
+		"openhands-discussion",  // missing trailing slash "openhands/"
+		"swe-agent-docs",        // missing trailing slash "swe-agent/"
+		"feature/roo-code",      // prefix appears in body, not at start
 		"",
 	}
 
