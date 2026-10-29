@@ -57,7 +57,8 @@ runs:
     - name: Build ai-detection
       shell: bash
       run: |
-        go build -o ${{ runner.temp }}/ai-detection ${{ github.action_path }}/..
+        cd "${{ github.action_path }}/.."
+        go build -o "${{ runner.temp }}/ai-detection" .
 
     - name: Scan commits and PR body
       id: scan
