@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,6 +28,32 @@ import (
 
 var Version = "dev"
 
+// resolveVersion returns the CLI version to display. Release builds inject the
+// version at link time via ldflags (-X ...cmd.Version=...). When that has not
+// happened, fall back to the module version recorded in binary's build info.
+func resolveVersion() string {
+	return versionFrom(Version, readBuildVersion)
+}
+
+// versionFrom selects the version string, preferring an ldflags override and
+// otherwise using the build-info version. It is split out for testability.
+func versionFrom(override string, buildVersion func() string) string {
+	if override != "dev" && override != "" {
+		return override
+	}
+	if bv := buildVersion(); bv != "" && bv != "(devel)" {
+		return bv
+	}
+	return "dev"
+}
+
+func readBuildVersion() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		return info.Main.Version
+	}
+	return ""
+}
+
 // Exit codes
 const (
 	ExitNoAI  = 0
@@ -37,21 +66,25 @@ type detectorConfig struct {
 	checkboxAIUsedLabel     string
 	checkboxAINotUsedLabel  string
 	enableCheckboxDetection bool
+	customTools             []string
 }
 
-func allDetectors(confidenceLevels map[detection.Confidence]float64, config detectorConfig) []detection.Detector {
+func allDetectors(confidenceLevels map[detection.Confidence]float64, config detectorConfig) ([]detection.Detector, error) {
 	toolmentionDetector := &toolmention.Detector{}
 	toolmentionDetector.SetConfidenceLevels(confidenceLevels)
 	toolmentionDetector.SetCheckboxConfig(
 		config.enableCheckboxDetection, config.checkboxAIUsedLabel, config.checkboxAINotUsedLabel,
 	)
+	if err := toolmentionDetector.SetCustomTools(config.customTools); err != nil {
+		return nil, fmt.Errorf("configure custom tools: %w", err)
+	}
 	return []detection.Detector{
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
 		toolmentionDetector,
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
-	}
+	}, nil
 }
 
 // parseKeyValueFloatList parses strings like "a=1,b=2.5" into a map[string]float64.
@@ -85,6 +118,33 @@ func parseKeyValueFloatList(s string) (map[string]float64, error) {
 		out[key] = v
 	}
 	return out, nil
+}
+
+func loadCustomTools(path string) ([]string, error) {
+	data, err := os.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return nil, fmt.Errorf("read custom tools file %q: %w", path, err)
+	}
+
+	var config struct {
+		Version     int      `json:"version"`
+		CustomTools []string `json:"custom_tools"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&config); err != nil {
+		return nil, fmt.Errorf("parse custom tools file %q: %w", path, err)
+	}
+	if err := decoder.Decode(new(json.RawMessage)); err != io.EOF {
+		return nil, fmt.Errorf("custom tools file %q must contain a single JSON object", path)
+	}
+	if config.Version != 1 {
+		return nil, fmt.Errorf("custom tools file %q: version must be 1 (got %d)", path, config.Version)
+	}
+	if config.CustomTools == nil {
+		return nil, fmt.Errorf("custom tools file %q: custom_tools must be an array of tool or model names", path)
+	}
+	return config.CustomTools, nil
 }
 
 // Run is the main entry point for the CLI. Returns an exit code.
@@ -204,7 +264,10 @@ Examples:
 				}
 			}
 
-			detectors := allDetectors(confidenceLevels, detectorConfig{})
+			detectors, err := allDetectors(confidenceLevels, detectorConfig{})
+			if err != nil {
+				return err
+			}
 			report, err := scan.ScanCommitRange(repoPath, rangeFlag, detectors)
 			if err != nil {
 				fmt.Fprintf(stderr, "error: %v\n", err)
@@ -252,11 +315,12 @@ Examples:
 func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var inputFlag string
+	var customToolsFlag string
+	var minConfFlag string
+	var confidenceLevelsFlag string
 	var checkboxAIUsedLabel string
 	var checkboxAINotUsedLabel string
 	var enableCheckboxDetection bool
-	var minConfFlag string
-	var confidenceLevelsFlag string
 
 	cmd := &cobra.Command{
 		Use:   "text",
@@ -272,6 +336,7 @@ is the primary detector for non-commit text analysis.
 Examples:
   echo "I used Claude to write this" | disclosure text --format=json
   disclosure text --input=pr-body.txt
+  disclosure text --custom-tools=tools.json --input=pr-body.txt
   cat comment.txt | disclosure text --min-confidence=medium
   disclosure text --input=review.txt --format=json | jq '.findings'`,
 		Example: `  # Scan text from stdin
@@ -279,6 +344,9 @@ Examples:
 
   # Scan a file
   disclosure text --input=pr-body.txt
+
+  # Include custom tool and model names from a local JSON file
+  disclosure text --custom-tools=tools.json --input=pr-body.txt
 
   # Scan with medium confidence threshold
   cat comment.txt | disclosure text --min-confidence=medium
@@ -288,24 +356,20 @@ Examples:
 
   # Use checkbox labels
   disclosure text \
-	--enable-checkbox-detection \
+	--enable-checkbox-detection
 	--cb-disclosed-ai="AI was used in this PR" \
 	--cb-disclosed-noai="AI was not used in this PR" \
 	--input=pr-body.txt
   `,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			var textBytes []byte
 			var err error
-
-			if inputFlag == "-" {
-				textBytes, err = io.ReadAll(os.Stdin)
-			} else {
-				textBytes, err = os.ReadFile(filepath.Clean(inputFlag))
-			}
-			if err != nil {
-				fmt.Fprintf(stderr, "error reading input: %v\n", err)
-				*exitCode = ExitError
-				return err
+			var customTools []string
+			if cmd.Flags().Changed("custom-tools") {
+				customTools, err = loadCustomTools(customToolsFlag)
+				if err != nil {
+					return err
+				}
 			}
 
 			minConf, err := detection.ConfidenceFromString(minConfFlag)
@@ -334,11 +398,27 @@ Examples:
 				}
 			}
 
-			detectors := allDetectors(confidenceLevels, detectorConfig{
+			detectors, err := allDetectors(confidenceLevels, detectorConfig{
 				checkboxAIUsedLabel:     checkboxAIUsedLabel,
 				checkboxAINotUsedLabel:  checkboxAINotUsedLabel,
 				enableCheckboxDetection: enableCheckboxDetection,
+				customTools:             customTools,
 			})
+			if err != nil {
+				return err
+			}
+
+			if inputFlag == "-" {
+				textBytes, err = io.ReadAll(os.Stdin)
+			} else {
+				textBytes, err = os.ReadFile(filepath.Clean(inputFlag))
+			}
+			if err != nil {
+				fmt.Fprintf(stderr, "error reading input: %v\n", err)
+				*exitCode = ExitError
+				return err
+			}
+
 			findings := scan.ScanText(string(textBytes), detectors)
 
 			if minConf > detection.ConfidenceLow {
@@ -398,6 +478,7 @@ Examples:
 	)
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
+	cmd.Flags().StringVar(&customToolsFlag, "custom-tools", "", "local JSON file with version 1 and a custom_tools array of tool or model names")
 	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
 	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
@@ -416,7 +497,7 @@ Examples:
 		Example: `  disclosure version
   disclosure version --format=json`,
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Fprintf(stdout, "disclosure %s\n", Version)
+			fmt.Fprintf(stdout, "disclosure %s\n", resolveVersion())
 			*exitCode = ExitNoAI
 		},
 	}

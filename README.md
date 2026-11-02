@@ -31,6 +31,7 @@ disclosure text \
 	[--format=json|text] [--input=FILE|-] \
 	[--min-confidence=low|medium|high] \
 	[--confidence-levels="low=30,medium=70,high=100"] \
+	[--custom-tools=FILE] \
 	[--enable-checkbox-detection] \
 	[--cb-disclosed-ai="AI was used"] \
 	[--cb-disclosed-noai="AI was not used"]
@@ -61,6 +62,29 @@ echo "I used Claude to write this PR" | disclosure text --format=json
 
 disclosure text --input=pr-body.txt
 ```
+
+#### Custom tool and model names
+
+The `text` command can supplement the built-in names with a local JSON file:
+
+```json
+{
+  "version": 1,
+  "custom_tools": [
+    "GPT-4 Turbo",
+    "Claude Opus 4.6"
+  ]
+}
+```
+
+```sh
+disclosure text --custom-tools=tools.json --input=pr-body.txt
+echo "I used GPT-4 Turbo" | disclosure text --custom-tools=tools.json --format=json
+```
+
+Names use the existing case-insensitive matching rules; spaces and hyphens also match whitespace, underscores, or hyphens in text, and regex characters are literal. Duplicate names are ignored, preferring built-in spellings, and longer overlapping matches take precedence. Custom names supplement built-in names for this `text` invocation, including checkbox detection. Choose specific names to avoid false positives.
+
+The file must contain one JSON object with `version: 1` and a `custom_tools` array of non-empty strings. An empty array keeps built-in names only. Invalid files return an error (exit code `2`).
 
 ### Numeric scoring
 
@@ -167,7 +191,7 @@ Pass it alongside the built-in detectors and the scan functions will run it the 
 go build -o disclosure .
 ```
 
-Requires Go 1.25+.
+Requires Go 1.27+.
 
 ## Running tests
 

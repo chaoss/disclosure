@@ -21,6 +21,7 @@ var KnownAgentCommitters = map[string]string{
 	"201248094+sourcegraph-cody[bot]@users.noreply.github.com":        "Sourcegraph Cody",
 	"220155983+jetbrains-ai[bot]@users.noreply.github.com":            "JetBrains AI",
 	"136622811+coderabbitai[bot]@users.noreply.github.com":            "CodeRabbit",
+	"151058649+codiumai-pr-agent-pro[bot]@users.noreply.github.com":    "PR-Agent Pro",
 }
 
 // GithubNoReplyEmailSuffix GitHub noreply emails suffix to check committer emails.
@@ -136,19 +137,25 @@ var SupportedToolsInMentions = []string{
 	"Nemotron",
 	"Salesforce Codegen",
 	"CodeWhisperer",
+	"OrbisAI Security",
 }
 
 // KnownAgentBranchPrefixes maps branch name prefixes used by AI coding CLIs/agents
 // when they create their own branches (e.g. "codex/fix-bug") to tool names.
 var KnownAgentBranchPrefixes = map[string]string{
-	"codex/":   "OpenAI Codex",
-	"claude/":  "Claude",
-	"copilot/": "GitHub Copilot",
-	"cursor/":  "Cursor",
-	"devin/":   "Devin",
-	"cline/":   "Cline",
-	"aider/":   "Aider",
-	"gemini/":  "Gemini",
+	"codex/":     "OpenAI Codex",
+	"claude/":    "Claude",
+	"copilot/":   "GitHub Copilot",
+	"cursor/":    "Cursor",
+	"devin/":     "Devin",
+	"cline/":     "Cline",
+	"aider/":     "Aider",
+	"gemini/":    "Gemini",
+	"roo/":       "Roo Code",
+	"roo-code/":  "Roo Code",
+	"windsurf/":  "Windsurf",
+	"openhands/": "OpenHands",
+	"swe-agent/": "SWE-Agent",
 }
 
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers
@@ -157,6 +164,9 @@ var KnownCoAuthorEmails = map[string]string{
 	"cursoragent@cursor.com": "Cursor",
 	"noreply@aider.chat":     "Aider",
 	"copilot@github.com":     "Copilot",
+	"noreply@continue.dev":   "Continue.dev",
+	"noreply@windsurf.com":   "Windsurf",
+	"openhands@all-hands.dev": "OpenHands",
 }
 
 // CoAuthorPattern Regex to look for Co-Authored-By trailer with name and email
@@ -188,6 +198,11 @@ var ReplitAttributionRegex = `(?m)^Replit-Commit-Author:\s*(Agent|Assistant)(?:\
 
 // ReplitAttributionPattern compiled pattern for Replit Agent or Assistant attribution
 var ReplitAttributionPattern = regexp.MustCompile(ReplitAttributionRegex)
+
+// OrbisAISignaturePattern Regex to detect the signature line the OrbisAI Security bot adds to commit messages
+var OrbisAISignaturePattern = regexp.MustCompile(
+	`(?im)^[ \t>*-]*automated security fix(?:[ \t]+generated)?[ \t]+by[ \t]+orbis(?:[ \t]*ai)?[ \t]*security(?:[ \t]*ai)?\b`,
+)
 
 // GitNotesAuthorshipPrefix Authorship prefix to check as a precondition in git notes
 var GitNotesAuthorshipPrefix = "authorship/"

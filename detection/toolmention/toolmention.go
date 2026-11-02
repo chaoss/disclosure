@@ -1,7 +1,9 @@
 package toolmention
 
 import (
+	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -11,10 +13,9 @@ import (
 	"github.com/chaoss/disclosure/detection"
 )
 
-func getToolPatterns() []toolPattern {
+func getToolPatterns(names []string) ([]toolPattern, error) {
 	var toolPatterns []toolPattern
 	const separator = `[\s_-]+`
-	names := append([]string(nil), detection.SupportedToolsInMentions...)
 	for _, name := range names {
 		parts := strings.FieldsFunc(name, func(r rune) bool {
 			return r == ' ' || r == '-'
@@ -22,19 +23,27 @@ func getToolPatterns() []toolPattern {
 		for i := range parts {
 			parts[i] = regexp.QuoteMeta(parts[i])
 		}
-		pattern := `(?i)\b` + strings.Join(parts, separator)
+		body := strings.Join(parts, separator)
+		if len(parts) == 0 {
+			body = regexp.QuoteMeta(name)
+		}
+		pattern := `(?i)\b` + body
 		last, _ := utf8.DecodeLastRuneInString(name)
 		if unicode.IsLetter(last) || unicode.IsDigit(last) || last == '_' {
 			pattern += `\b`
 		} else {
 			pattern += `(?:$|[^A-Za-z0-9_])`
 		}
+		compiledRegex, err := regexp.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("compile tool mention pattern %q: %w", pattern, err)
+		}
 		toolPatterns = append(toolPatterns, toolPattern{
 			name:    name,
-			pattern: regexp.MustCompile(pattern),
+			pattern: compiledRegex,
 		})
 	}
-	return toolPatterns
+	return toolPatterns, nil
 }
 
 func newCheckboxRegex(label string) *regexp.Regexp {
@@ -48,9 +57,18 @@ func stripComments(text string) string {
 	return re.ReplaceAllString(text, "")
 }
 
-func matchTools(text string) []toolMatch {
-	matches := make([]toolMatch, 0, len(toolPatterns))
-	for _, tp := range toolPatterns {
+// matchTools uses predefined list of supported tool patterns and also allows
+// user to specify a custom list which will be used in addition to the predefined list.
+func matchTools(text string, customToolPatterns []toolPattern) []toolMatch {
+	var patterns []toolPattern
+	if len(customToolPatterns) == 0 {
+		patterns = toolPatterns
+	} else {
+		patterns = slices.Concat(toolPatterns, customToolPatterns)
+	}
+
+	matches := make([]toolMatch, 0, len(patterns))
+	for _, tp := range patterns {
 		for _, loc := range tp.pattern.FindAllStringIndex(text, -1) {
 			matches = append(matches, toolMatch{
 				start: loc[0],
@@ -70,7 +88,7 @@ func matchTools(text string) []toolMatch {
 	})
 
 	toolMatches := make([]toolMatch, 0, len(matches))
-	seen := make(map[string]struct{}, len(toolPatterns))
+	seen := make(map[string]struct{}, len(patterns))
 	lastEnd := -1
 	for _, match := range matches {
 		if match.start < lastEnd {
@@ -104,12 +122,17 @@ type Detector struct {
 	CheckboxAIUsedRegex      *regexp.Regexp
 	CheckboxAINotUsedRegex   *regexp.Regexp
 	initOnce                 sync.Once
+	customToolPatterns       []toolPattern
 }
 
 var toolPatterns []toolPattern
 
 func init() {
-	toolPatterns = getToolPatterns()
+	var err error
+	toolPatterns, err = getToolPatterns(detection.SupportedToolsInMentions)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (d *Detector) Name() string { return "toolmention" }
@@ -156,7 +179,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 		return d.checkboxAwareDetect(text)
 	}
 
-	toolMatches := matchTools(text)
+	toolMatches := matchTools(text, d.customToolPatterns)
 	findings := make([]detection.Finding, 0, len(toolMatches))
 	if len(toolMatches) > 0 {
 		score := detection.ToolMentionBaseScore
@@ -170,7 +193,7 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 
 func (d *Detector) checkboxAwareDetect(inputText string) []detection.Finding {
 	inputText = stripComments(inputText)
-	toolMatches := matchTools(inputText)
+	toolMatches := matchTools(inputText, d.customToolPatterns)
 
 	var aiUsedCbTicked, aiNotUsedCbTicked bool
 
@@ -215,4 +238,37 @@ func (d *Detector) checkboxAwareDetect(inputText string) []detection.Finding {
 	}
 
 	return findings
+}
+
+// SetCustomTools supplements the built-in names for this detector only.
+// Needs to be called before Detect; repeated calls replace previous custom names.
+func (d *Detector) SetCustomTools(names []string) error {
+	if len(names) == 0 {
+		d.customToolPatterns = nil
+		return nil
+	}
+	seen := map[string]bool{}
+	for _, tp := range toolPatterns {
+		seen[strings.ToLower(tp.name)] = true
+	}
+	cleanedNames := []string{}
+	for i, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return fmt.Errorf("custom_tools[%d] must be a non-empty name", i)
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		cleanedNames = append(cleanedNames, name)
+		seen[key] = true
+	}
+
+	customToolPatterns, err := getToolPatterns(cleanedNames)
+	if err != nil {
+		return err
+	}
+	d.customToolPatterns = customToolPatterns
+	return nil
 }

@@ -59,6 +59,7 @@ func TestDetectMixedCase(t *testing.T) {
 		{"198982749+Copilot@users.noreply.github.com", "GitHub Copilot (agent)"},
 		{"209825114+CLAUDE[BOT]@USERS.NOREPLY.GITHUB.COM", "Claude"},
 		{"136622811+CodeRabbitAI[bot]@users.noreply.github.com", "CodeRabbit"},
+		{"151058649+codiumai-pr-agent-pro[bot]@users.noreply.github.com", "PR-Agent Pro"},
 	}
 
 	for _, tc := range cases {
@@ -126,6 +127,10 @@ func TestDetectNumericPrefix(t *testing.T) {
 		{"198982749+copilot-v2@users.noreply.github.com", "GitHub Copilot (agent)"},
 		// CodeRabbit with a different username
 		{"136622811+coderabbit-new@users.noreply.github.com", "CodeRabbit"},
+		// PR-Agent Pro with a different username
+		{"151058649+pr-agent-pro-renamed@users.noreply.github.com", "PR-Agent Pro"},
+		// PR-Agent Pro rebranded username
+		{"151058649+qodo-code-review[bot]@users.noreply.github.com", "PR-Agent Pro"},
 	}
 
 	for _, tc := range cases {
@@ -161,6 +166,7 @@ func TestDetectAuthorAndCommitter(t *testing.T) {
 	const (
 		claudeEmail  = "209825114+claude[bot]@users.noreply.github.com"
 		copilotEmail = "198982749+copilot@users.noreply.github.com"
+		prAgentEmail = "151058649+codiumai-pr-agent-pro[bot]@users.noreply.github.com"
 		humanEmail   = "human@example.com"
 	)
 
@@ -191,6 +197,27 @@ func TestDetectAuthorAndCommitter(t *testing.T) {
 			wantTools: []string{detection.KnownAgentCommitters[claudeEmail]},
 			wantDetails: []string{
 				"committer email " + claudeEmail + " matches known AI bot",
+			},
+		},
+		{
+			name: "committer only with PR-Agent Pro in the wild",
+			input: detection.Input{
+				AuthorEmail: humanEmail,
+				CommitEmail: prAgentEmail,
+			},
+			wantTools: []string{detection.KnownAgentCommitters[prAgentEmail]},
+			wantDetails: []string{
+				"committer email " + prAgentEmail + " matches known AI bot",
+			},
+		},
+		{
+			name: "committer in the wild without author",
+			input: detection.Input{
+				CommitEmail: prAgentEmail,
+			},
+			wantTools: []string{detection.KnownAgentCommitters[prAgentEmail]},
+			wantDetails: []string{
+				"committer email " + prAgentEmail + " matches known AI bot",
 			},
 		},
 		{
