@@ -234,46 +234,43 @@ func TestRunTextCommandNoAI(t *testing.T) {
 
 func TestRunTextCommandMinConfidence(t *testing.T) {
 	tmp := t.TempDir()
-	file := filepath.Join(tmp, "input.txt")
-	os.WriteFile(file, []byte("I used Claude to write this"), 0644)
 
-	// Tool mention has score 20 (low confidence).
-	// Default / low min-confidence should detect AI.
+	// Case 1: Plain text tool mention without checkbox has score 20 (low confidence).
+	toolMentionFile := filepath.Join(tmp, "tool_mention.txt")
+	os.WriteFile(toolMentionFile, []byte("I used Claude to write this"), 0644)
+
+	// Low min-confidence detects low-confidence tool mention.
 	{
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"text", "--input=" + file, "--min-confidence=low"}, &stdout, &stderr)
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=low"}, &stdout, &stderr)
 		if code != ExitAI {
-			t.Errorf("min-confidence=low: code = %d, want %d", code, ExitAI)
+			t.Errorf("tool mention min-confidence=low: code = %d, want %d", code, ExitAI)
 		}
 	}
 
-	// Medium min-confidence should filter out low-confidence tool mention.
+	// Medium and high min-confidence filter out low-confidence tool mention.
 	{
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"text", "--input=" + file, "--min-confidence=medium"}, &stdout, &stderr)
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=medium"}, &stdout, &stderr)
 		if code != ExitNoAI {
-			t.Errorf("min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+			t.Errorf("tool mention min-confidence=medium: code = %d, want %d", code, ExitNoAI)
 		}
 		if !strings.Contains(stdout.String(), "No AI involvement detected.") {
-			t.Errorf("min-confidence=medium: expected 'No AI involvement detected.', got: %s", stdout.String())
+			t.Errorf("tool mention min-confidence=medium: expected 'No AI involvement detected.', got: %s", stdout.String())
 		}
 	}
-
-	// High min-confidence should also filter out low-confidence tool mention.
 	{
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"text", "--input=" + file, "--min-confidence=high"}, &stdout, &stderr)
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=high"}, &stdout, &stderr)
 		if code != ExitNoAI {
-			t.Errorf("min-confidence=high: code = %d, want %d", code, ExitNoAI)
+			t.Errorf("tool mention min-confidence=high: code = %d, want %d", code, ExitNoAI)
 		}
 	}
-
-	// JSON format with medium min-confidence should return empty findings.
 	{
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"text", "--input=" + file, "--format=json", "--min-confidence=medium"}, &stdout, &stderr)
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--format=json", "--min-confidence=medium"}, &stdout, &stderr)
 		if code != ExitNoAI {
-			t.Errorf("JSON min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+			t.Errorf("tool mention JSON min-confidence=medium: code = %d, want %d", code, ExitNoAI)
 		}
 		var result struct {
 			Findings []detection.Finding `json:"findings"`
@@ -282,14 +279,91 @@ func TestRunTextCommandMinConfidence(t *testing.T) {
 			t.Fatalf("unmarshal json: %v", err)
 		}
 		if len(result.Findings) != 0 {
-			t.Errorf("JSON min-confidence=medium: got %d findings, want 0", len(result.Findings))
+			t.Errorf("tool mention JSON min-confidence=medium: got %d findings, want 0", len(result.Findings))
 		}
 	}
 
-	// Invalid min-confidence should return ExitError.
+	// Case 2: Ticked AI used checkbox with tool mention has score 95 (high confidence).
+	// When --enable-checkbox-detection is passed, min-confidence=high, medium, and low all retain it.
+	checkboxWithToolFile := filepath.Join(tmp, "checkbox_with_tool.txt")
+	os.WriteFile(checkboxWithToolFile, []byte("[x] This contribution was assisted or created by Generative AI tools.\n\nClaude was used for drafting."), 0644)
+	{
+		for _, minConf := range []string{"low", "medium", "high"} {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{
+				"text",
+				"--enable-checkbox-detection",
+				"--input=" + checkboxWithToolFile,
+				"--min-confidence=" + minConf,
+			}, &stdout, &stderr)
+			if code != ExitAI {
+				t.Errorf("ticked checkbox with tool min-confidence=%s: code = %d, want %d (stderr=%s)", minConf, code, ExitAI, stderr.String())
+			}
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxWithToolFile,
+			"--format=json",
+			"--min-confidence=high",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("ticked checkbox with tool JSON min-confidence=high: code = %d, want %d", code, ExitAI)
+		}
+		var result struct {
+			Findings []detection.Finding `json:"findings"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if len(result.Findings) != 1 {
+			t.Fatalf("ticked checkbox with tool: got %d findings, want 1", len(result.Findings))
+		}
+		if result.Findings[0].Confidence != detection.ConfidenceHigh || result.Findings[0].Score != 95 {
+			t.Errorf("ticked checkbox with tool: score=%f, confidence=%v, want 95.0, high", result.Findings[0].Score, result.Findings[0].Confidence)
+		}
+	}
+
+	// Case 3: Ticked AI used checkbox without tool mention has score 75 (high confidence).
+	// Retained at min-confidence=high.
+	checkboxOnlyFile := filepath.Join(tmp, "checkbox_only.txt")
+	os.WriteFile(checkboxOnlyFile, []byte("[x] This contribution was assisted or created by Generative AI tools."), 0644)
 	{
 		var stdout, stderr bytes.Buffer
-		code := Run([]string{"text", "--input=" + file, "--min-confidence=bogus"}, &stdout, &stderr)
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxOnlyFile,
+			"--min-confidence=high",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("ticked checkbox only min-confidence=high: code = %d, want %d", code, ExitAI)
+		}
+	}
+
+	// Case 4: Ticked NOT-used checkbox with tool mention has score 20 (low confidence).
+	// Filtered out at min-confidence=medium and min-confidence=high.
+	checkboxNotUsedFile := filepath.Join(tmp, "checkbox_not_used.txt")
+	os.WriteFile(checkboxNotUsedFile, []byte("[x] This contribution was NOT assisted or created by Generative AI tools.\n\nClaude was mentioned in comments."), 0644)
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxNotUsedFile,
+			"--min-confidence=medium",
+		}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("ticked NOT-used checkbox min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+	}
+
+	// Case 5: Invalid min-confidence should return ExitError.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=bogus"}, &stdout, &stderr)
 		if code != ExitError {
 			t.Errorf("min-confidence=bogus: code = %d, want %d", code, ExitError)
 		}
