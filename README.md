@@ -29,9 +29,12 @@ disclosure scan \
 	[repo-path]
 disclosure text \
 	[--format=json|text] [--input=FILE|-] \
+	[--min-confidence=low|medium|high] \
+	[--confidence-levels="low=30,medium=70,high=100"] \
 	[--custom-tools=FILE] \
-	[--checkbox-label-ai-used="AI was used"] \
-	[--checkbox-label-ai-not-used="AI was not used"]
+	[--enable-checkbox-detection] \
+	[--cb-disclosed-ai="AI was used"] \
+	[--cb-disclosed-noai="AI was not used"]
 disclosure version
 ```
 

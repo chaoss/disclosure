@@ -232,6 +232,229 @@ func TestRunTextCommandNoAI(t *testing.T) {
 	}
 }
 
+func TestRunTextCommandMinConfidence(t *testing.T) {
+	tmp := t.TempDir()
+
+	// Case 1: Plain text tool mention without checkbox has score 20 (low confidence).
+	toolMentionFile := filepath.Join(tmp, "tool_mention.txt")
+	os.WriteFile(toolMentionFile, []byte("I used Claude to write this"), 0644)
+
+	// Low min-confidence detects low-confidence tool mention.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=low"}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("tool mention min-confidence=low: code = %d, want %d", code, ExitAI)
+		}
+	}
+
+	// Medium and high min-confidence filter out low-confidence tool mention.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=medium"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("tool mention min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+		if !strings.Contains(stdout.String(), "No AI involvement detected.") {
+			t.Errorf("tool mention min-confidence=medium: expected 'No AI involvement detected.', got: %s", stdout.String())
+		}
+	}
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=high"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("tool mention min-confidence=high: code = %d, want %d", code, ExitNoAI)
+		}
+	}
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--format=json", "--min-confidence=medium"}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("tool mention JSON min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+		var result struct {
+			Findings []detection.Finding `json:"findings"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if len(result.Findings) != 0 {
+			t.Errorf("tool mention JSON min-confidence=medium: got %d findings, want 0", len(result.Findings))
+		}
+	}
+
+	// Case 2: Ticked AI used checkbox with tool mention has score 95 (high confidence).
+	// When --enable-checkbox-detection is passed, min-confidence=high, medium, and low all retain it.
+	checkboxWithToolFile := filepath.Join(tmp, "checkbox_with_tool.txt")
+	os.WriteFile(checkboxWithToolFile, []byte("[x] This contribution was assisted or created by Generative AI tools.\n\nClaude was used for drafting."), 0644)
+	{
+		for _, minConf := range []string{"low", "medium", "high"} {
+			var stdout, stderr bytes.Buffer
+			code := Run([]string{
+				"text",
+				"--enable-checkbox-detection",
+				"--input=" + checkboxWithToolFile,
+				"--min-confidence=" + minConf,
+			}, &stdout, &stderr)
+			if code != ExitAI {
+				t.Errorf("ticked checkbox with tool min-confidence=%s: code = %d, want %d (stderr=%s)", minConf, code, ExitAI, stderr.String())
+			}
+		}
+
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxWithToolFile,
+			"--format=json",
+			"--min-confidence=high",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("ticked checkbox with tool JSON min-confidence=high: code = %d, want %d", code, ExitAI)
+		}
+		var result struct {
+			Findings []detection.Finding `json:"findings"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if len(result.Findings) != 1 {
+			t.Fatalf("ticked checkbox with tool: got %d findings, want 1", len(result.Findings))
+		}
+		if result.Findings[0].Confidence != detection.ConfidenceHigh || result.Findings[0].Score != 95 {
+			t.Errorf("ticked checkbox with tool: score=%f, confidence=%v, want 95.0, high", result.Findings[0].Score, result.Findings[0].Confidence)
+		}
+	}
+
+	// Case 3: Ticked AI used checkbox without tool mention has score 75 (high confidence).
+	// Retained at min-confidence=high.
+	checkboxOnlyFile := filepath.Join(tmp, "checkbox_only.txt")
+	os.WriteFile(checkboxOnlyFile, []byte("[x] This contribution was assisted or created by Generative AI tools."), 0644)
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxOnlyFile,
+			"--min-confidence=high",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("ticked checkbox only min-confidence=high: code = %d, want %d", code, ExitAI)
+		}
+	}
+
+	// Case 4: Ticked NOT-used checkbox with tool mention has score 20 (low confidence).
+	// Filtered out at min-confidence=medium and min-confidence=high.
+	checkboxNotUsedFile := filepath.Join(tmp, "checkbox_not_used.txt")
+	os.WriteFile(checkboxNotUsedFile, []byte("[x] This contribution was NOT assisted or created by Generative AI tools.\n\nClaude was mentioned in comments."), 0644)
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--enable-checkbox-detection",
+			"--input=" + checkboxNotUsedFile,
+			"--min-confidence=medium",
+		}, &stdout, &stderr)
+		if code != ExitNoAI {
+			t.Errorf("ticked NOT-used checkbox min-confidence=medium: code = %d, want %d", code, ExitNoAI)
+		}
+	}
+
+	// Case 5: Invalid min-confidence should return ExitError.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"text", "--input=" + toolMentionFile, "--min-confidence=bogus"}, &stdout, &stderr)
+		if code != ExitError {
+			t.Errorf("min-confidence=bogus: code = %d, want %d", code, ExitError)
+		}
+	}
+}
+
+func TestRunTextCommandCustomConfidenceLevels(t *testing.T) {
+	tmp := t.TempDir()
+	file := filepath.Join(tmp, "input.txt")
+	os.WriteFile(file, []byte("I used Claude to write this"), 0644)
+
+	// Tool mention score is 20. Overriding low=10, medium=25 promotes score 20 to medium confidence (10 < 20 <= 25).
+	// Aggregate confidence should also be reported as medium.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=low=10,medium=25,high=50",
+			"--min-confidence=medium",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels: code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// Reviewer example: low=10,medium=25,high=50 returns a medium finding (score 20 <= 25).
+	// Aggregate confidence must be reported as medium, not default low.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels (low=10,medium=25,high=50): code = %d, want %d", code, ExitAI)
+		}
+		if !strings.Contains(stdout.String(), "Score: 20.0, Confidence: medium") {
+			t.Errorf("expected aggregate confidence 'Score: 20.0, Confidence: medium', got:\n%s", stdout.String())
+		}
+	}
+
+	// JSON format should report aggregate confidence as medium when using custom thresholds.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--format=json",
+			"--confidence-levels=low=10,medium=25,high=50",
+		}, &stdout, &stderr)
+		if code != ExitAI {
+			t.Errorf("custom confidence levels JSON: code = %d, want %d", code, ExitAI)
+		}
+		var result struct {
+			Findings   []detection.Finding  `json:"findings"`
+			Score      float64              `json:"score"`
+			Confidence detection.Confidence `json:"confidence"`
+		}
+		if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+			t.Fatalf("unmarshal json: %v", err)
+		}
+		if result.Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON aggregate confidence: got %v, want %v", result.Confidence, detection.ConfidenceMedium)
+		}
+		if len(result.Findings) != 1 {
+			t.Fatalf("custom confidence levels JSON findings: got %d, want 1", len(result.Findings))
+		}
+		if result.Findings[0].Confidence != detection.ConfidenceMedium {
+			t.Errorf("custom confidence levels JSON finding confidence: got %v, want %v", result.Findings[0].Confidence, detection.ConfidenceMedium)
+		}
+	}
+
+	// Invalid confidence-levels format should return ExitError.
+	{
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{
+			"text",
+			"--input=" + file,
+			"--confidence-levels=invalid",
+		}, &stdout, &stderr)
+		if code != ExitError {
+			t.Errorf("invalid confidence-levels: code = %d, want %d", code, ExitError)
+		}
+	}
+}
+
 func TestRunScanInvalidRepo(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"scan", t.TempDir()}, &stdout, &stderr)

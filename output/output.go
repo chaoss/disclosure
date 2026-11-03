@@ -56,7 +56,9 @@ func FormatText(w io.Writer, report scan.Report) error {
 }
 
 // FormatTextFindings writes findings (from a text scan) in human-readable form.
-func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
+// If confidenceLevels is provided, it is used to compute aggregate confidence;
+// otherwise, default confidence levels are used.
+func FormatTextFindings(w io.Writer, findings []detection.Finding, confidenceLevels ...map[detection.Confidence]float64) error {
 	if len(findings) == 0 {
 		fmt.Fprintln(w, "No AI involvement detected.")
 		return nil
@@ -64,9 +66,14 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 
 	fmt.Fprintf(w, "Found %d AI signal(s):\n", len(findings))
 
+	levels := detection.GetDefaultConfidenceLevels()
+	if len(confidenceLevels) > 0 && confidenceLevels[0] != nil {
+		levels = confidenceLevels[0]
+	}
+
 	// compute consolidated score and confidence for these findings
 	score, _ := detection.ConsolidateScoreByFindings(findings)
-	confidence := detection.ScoreToConfidence(detection.GetDefaultConfidenceLevels(), score)
+	confidence := detection.ScoreToConfidence(levels, score)
 	fmt.Fprintf(w, "Score: %.1f, Confidence: %s\n", score, confidence.String())
 
 	for _, f := range findings {
@@ -79,11 +86,17 @@ func FormatTextFindings(w io.Writer, findings []detection.Finding) error {
 }
 
 // FormatJSONFindings writes findings as JSON to w.
-func FormatJSONFindings(w io.Writer, findings []detection.Finding) error {
+// If confidenceLevels is provided, it is used to compute aggregate confidence;
+// otherwise, default confidence levels are used.
+func FormatJSONFindings(w io.Writer, findings []detection.Finding, confidenceLevels ...map[detection.Confidence]float64) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
+	levels := detection.GetDefaultConfidenceLevels()
+	if len(confidenceLevels) > 0 && confidenceLevels[0] != nil {
+		levels = confidenceLevels[0]
+	}
 	score, _ := detection.ConsolidateScoreByFindings(findings)
-	confidence := detection.ScoreToConfidence(detection.GetDefaultConfidenceLevels(), score)
+	confidence := detection.ScoreToConfidence(levels, score)
 	return enc.Encode(struct {
 		Findings   []detection.Finding  `json:"findings"`
 		Score      float64              `json:"score"`

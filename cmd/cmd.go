@@ -316,6 +316,8 @@ func textCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
 	var formatFlag string
 	var inputFlag string
 	var customToolsFlag string
+	var minConfFlag string
+	var confidenceLevelsFlag string
 	var checkboxAIUsedLabel string
 	var checkboxAINotUsedLabel string
 	var enableCheckboxDetection bool
@@ -369,7 +371,34 @@ Examples:
 					return err
 				}
 			}
-			detectors, err := allDetectors(detection.GetDefaultConfidenceLevels(), detectorConfig{
+
+			minConf, err := detection.ConfidenceFromString(minConfFlag)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				*exitCode = ExitError
+				return err
+			}
+
+			// parse confidence-levels override if provided
+			confidenceLevels := detection.GetDefaultConfidenceLevels()
+			if strings.TrimSpace(confidenceLevelsFlag) != "" {
+				flagMap, err := parseKeyValueFloatList(confidenceLevelsFlag)
+				if err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+				if confidenceLevels, err = detection.SetConfidenceLevelsFromStrings(
+					confidenceLevels,
+					flagMap,
+				); err != nil {
+					fmt.Fprintln(stderr, err)
+					*exitCode = ExitError
+					return err
+				}
+			}
+
+			detectors, err := allDetectors(confidenceLevels, detectorConfig{
 				checkboxAIUsedLabel:     checkboxAIUsedLabel,
 				checkboxAINotUsedLabel:  checkboxAINotUsedLabel,
 				enableCheckboxDetection: enableCheckboxDetection,
@@ -392,15 +421,25 @@ Examples:
 
 			findings := scan.ScanText(string(textBytes), detectors)
 
+			if minConf > detection.ConfidenceLow {
+				var filtered []detection.Finding
+				for _, f := range findings {
+					if f.Confidence >= minConf {
+						filtered = append(filtered, f)
+					}
+				}
+				findings = filtered
+			}
+
 			switch formatFlag {
 			case "json":
-				if err := output.FormatJSONFindings(stdout, findings); err != nil {
+				if err := output.FormatJSONFindings(stdout, findings, confidenceLevels); err != nil {
 					fmt.Fprintf(stderr, "error: %v\n", err)
 					*exitCode = ExitError
 					return err
 				}
 			case "text":
-				if err := output.FormatTextFindings(stdout, findings); err != nil {
+				if err := output.FormatTextFindings(stdout, findings, confidenceLevels); err != nil {
 					fmt.Fprintf(stderr, "error: %v\n", err)
 					*exitCode = ExitError
 					return err
@@ -440,6 +479,8 @@ Examples:
 	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
 	cmd.Flags().StringVar(&inputFlag, "input", "-", "input file path, or - for stdin")
 	cmd.Flags().StringVar(&customToolsFlag, "custom-tools", "", "local JSON file with version 1 and a custom_tools array of tool or model names")
+	cmd.Flags().StringVar(&minConfFlag, "min-confidence", "low", "minimum confidence level: low, medium, high (or 1, 2, 3)")
+	cmd.Flags().StringVar(&confidenceLevelsFlag, "confidence-levels", "", "override confidence->score mapping, e.g. 'low=20,medium=60,high=100'")
 
 	return cmd
 }

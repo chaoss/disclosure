@@ -152,6 +152,55 @@ func TestFormatTextFindings(t *testing.T) {
 	}
 }
 
+func TestFormatTextFindingsCustomConfidenceLevels(t *testing.T) {
+	var buf bytes.Buffer
+	findings := []detection.Finding{
+		{Detector: "toolmention", Tool: "Claude", Score: 20, Confidence: detection.ConfidenceMedium, Detail: "text mentions Claude"},
+	}
+
+	customLevels := map[detection.Confidence]float64{
+		detection.ConfidenceLow:    10.0,
+		detection.ConfidenceMedium: 25.0,
+		detection.ConfidenceHigh:   50.0,
+	}
+
+	if err := FormatTextFindings(&buf, findings, customLevels); err != nil {
+		t.Fatalf("FormatTextFindings: %v", err)
+	}
+
+	if !strings.Contains(buf.String(), "Confidence: medium") {
+		t.Errorf("expected aggregate Confidence: medium, got:\n%s", buf.String())
+	}
+}
+
+func TestFormatJSONFindingsCustomConfidenceLevels(t *testing.T) {
+	var buf bytes.Buffer
+	findings := []detection.Finding{
+		{Detector: "toolmention", Tool: "Claude", Score: 20, Confidence: detection.ConfidenceMedium, Detail: "text mentions Claude"},
+	}
+
+	customLevels := map[detection.Confidence]float64{
+		detection.ConfidenceLow:    10.0,
+		detection.ConfidenceMedium: 25.0,
+		detection.ConfidenceHigh:   50.0,
+	}
+
+	if err := FormatJSONFindings(&buf, findings, customLevels); err != nil {
+		t.Fatalf("FormatJSONFindings: %v", err)
+	}
+
+	var decoded struct {
+		Score      float64              `json:"score"`
+		Confidence detection.Confidence `json:"confidence"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &decoded); err != nil {
+		t.Fatalf("unmarshal json: %v", err)
+	}
+	if decoded.Confidence != detection.ConfidenceMedium {
+		t.Errorf("expected aggregate confidence medium, got %v", decoded.Confidence)
+	}
+}
+
 func TestFormatTextFindingsEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	if err := FormatTextFindings(&buf, nil); err != nil {
