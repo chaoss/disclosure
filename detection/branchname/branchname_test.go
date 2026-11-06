@@ -50,12 +50,12 @@ func TestDetectNoMatch(t *testing.T) {
 	cases := []string{
 		"main",
 		"feature/add-login",
-		"fix-codex-typo",        // "codex" appears, but not as a branch prefix
-		"rooster/fix-bug",       // starts with "roo", but not "roo/"
-		"windsurfer/refactor",   // starts with "windsurf", but not "windsurf/"
-		"openhands-discussion",  // missing trailing slash "openhands/"
-		"swe-agent-docs",        // missing trailing slash "swe-agent/"
-		"feature/roo-code",      // prefix appears in body, not at start
+		"fix-codex-typo",       // "codex" appears, but not as a branch prefix
+		"rooster/fix-bug",      // starts with "roo", but not "roo/"
+		"windsurfer/refactor",  // starts with "windsurf", but not "windsurf/"
+		"openhands-discussion", // missing trailing slash "openhands/"
+		"swe-agent-docs",       // missing trailing slash "swe-agent/"
+		"feature/roo-code",     // prefix appears in body, not at start
 		"",
 	}
 
@@ -63,6 +63,29 @@ func TestDetectNoMatch(t *testing.T) {
 		findings := d.Detect(detection.Input{BranchName: branch})
 		if len(findings) != 0 {
 			t.Errorf("Detect(%q): got %d findings, want 0", branch, len(findings))
+		}
+	}
+}
+
+func TestDetectMergedBranchFromCommitMessage(t *testing.T) {
+	d := &Detector{}
+	codex := detection.KnownAgentBranchPrefixes["codex/"]
+	cases := map[string]string{
+		"Merge pull request #188 from agrafix/codex/fix-cpu-denial-of-service-vulnerability\n\nBound captured extension route backtracking": codex,
+		"Merge pull request #41 from OskarEichler/codex/security-normalize-hostname-bounds":                                                 codex,
+		"Merge branch 'claude/add-tests'":                                  detection.KnownAgentBranchPrefixes["claude/"],
+		"Merge remote-tracking branch 'origin/main' into copilot/fix-docs": "",
+		"Merge pull request #12 from someone/feature/codex-support":        "",
+		"Fix bug\n\nMerge pull request #1 from a/codex/x":                  "",
+	}
+	for message, want := range cases {
+		findings := d.Detect(detection.Input{BranchName: "main", CommitMessage: message})
+		got := ""
+		if len(findings) == 1 {
+			got = findings[0].Tool
+		}
+		if got != want {
+			t.Errorf("Detect(%q): tool = %q, want %q", message, got, want)
 		}
 	}
 }
