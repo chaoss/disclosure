@@ -249,4 +249,7 @@ const (
 
 	// Branch name detector
 	BranchNameBaseScore float64 = 75.0
+
+	// Disclosure phrase detector
+	DisclosurePhraseBaseScore float64 = 75.0
 )
