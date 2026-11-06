@@ -1214,3 +1214,40 @@ func TestRunTextCommandWithCheckboxDetection(t *testing.T) {
 		})
 	}
 }
+
+func TestRunTextCommandDisclosurePhrase(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "pr.txt")
+	body := "Fix synchronous read recursion.\n\nDrafted with OpenAI Codex."
+	if err := os.WriteFile(file, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"text", "--input=" + file, "--format=json", "--min-confidence=high"}, &stdout, &stderr)
+	if code != ExitAI {
+		t.Fatalf("code = %d, want %d (stderr=%s)", code, ExitAI, stderr.String())
+	}
+	var result struct {
+		Confidence string              `json:"confidence"`
+		Findings   []detection.Finding `json:"findings"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("unmarshal json: %v", err)
+	}
+	if result.Confidence != "high" {
+		t.Errorf("confidence = %q, want high", result.Confidence)
+	}
+	detectors := map[string]bool{}
+	for _, f := range result.Findings {
+		detectors[f.Detector] = true
+	}
+	if !detectors["disclosurephrase"] {
+		t.Errorf("findings = %+v, want a disclosurephrase finding", result.Findings)
+	}
+
+	stdout.Reset()
+	Run([]string{"text", "--input=" + file, "--format=json", "--enable-checkbox-detection"}, &stdout, &stderr)
+	if strings.Contains(stdout.String(), "disclosurephrase") {
+		t.Errorf("checkbox detection on: got a disclosurephrase finding, want the checkbox to decide")
+	}
+}

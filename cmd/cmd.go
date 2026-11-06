@@ -17,6 +17,7 @@ import (
 	"github.com/chaoss/disclosure/detection"
 	"github.com/chaoss/disclosure/detection/branchname"
 	"github.com/chaoss/disclosure/detection/committer"
+	"github.com/chaoss/disclosure/detection/disclosurephrase"
 	"github.com/chaoss/disclosure/detection/gitnotes"
 	"github.com/chaoss/disclosure/detection/toolmention"
 	"github.com/chaoss/disclosure/detection/trailer"
@@ -78,13 +79,18 @@ func allDetectors(confidenceLevels map[detection.Confidence]float64, config dete
 	if err := toolmentionDetector.SetCustomTools(config.customTools); err != nil {
 		return nil, fmt.Errorf("configure custom tools: %w", err)
 	}
-	return []detection.Detector{
+	detectors := []detection.Detector{
 		&committer.Detector{ConfidenceLevels: confidenceLevels},
 		&gitnotes.Detector{ConfidenceLevels: confidenceLevels},
 		&trailer.Detector{ConfidenceLevels: confidenceLevels},
 		toolmentionDetector,
 		&branchname.Detector{ConfidenceLevels: confidenceLevels},
-	}, nil
+	}
+	// With checkbox detection on, the template's checkbox answer is the disclosure.
+	if !config.enableCheckboxDetection {
+		detectors = append(detectors, &disclosurephrase.Detector{ConfidenceLevels: confidenceLevels})
+	}
+	return detectors, nil
 }
 
 // parseKeyValueFloatList parses strings like "a=1,b=2.5" into a map[string]float64.
