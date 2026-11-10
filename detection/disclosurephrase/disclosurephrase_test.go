@@ -46,6 +46,15 @@ func TestDetectPlainMentionsAreIgnored(t *testing.T) {
 		"Tested with Cursor and VS Code",
 		"Bump the Gemini SDK",
 		"Drafted with care.\n\nWorks with Codex sessions.",
+		"Not generated with Claude or any other AI tool.",
+		"No AI was used; this was not written using Copilot.",
+		"This wasn't drafted with Codex.",
+		"No Copilot was used here",
+		"Neither Copilot nor ChatGPT was used",
+		"AI use: Claude was not used",
+		"AI disclosure: none. No Copilot or ChatGPT.",
+		"<!-- AI disclosure: say which tool, e.g. Claude or Copilot -->",
+		"<!--\nAI disclosure: e.g.\nDrafted with Codex\n-->\nFixes a typo.",
 		"",
 	}
 	for _, text := range cases {
@@ -55,11 +64,19 @@ func TestDetectPlainMentionsAreIgnored(t *testing.T) {
 	}
 }
 
-func TestDetectCommitMessageFooter(t *testing.T) {
+func TestDetectIgnoresCommitMessage(t *testing.T) {
 	d := &Detector{}
 	findings := d.Detect(detection.Input{CommitMessage: "feat: add feature\n\nGenerated with Claude Code"})
-	if len(findings) != 1 || findings[0].Tool != "Claude Code" {
-		t.Fatalf("Detect: got %+v, want one Claude Code finding", findings)
+	if len(findings) != 0 {
+		t.Fatalf("Detect: got %+v, want no findings", findings)
+	}
+}
+
+func TestDetectStatementNextToNegatedSentence(t *testing.T) {
+	d := &Detector{}
+	findings := d.Detect(detection.Input{Text: "This was not trivial. Drafted with Codex."})
+	if len(findings) != 1 || findings[0].Tool != "Codex" {
+		t.Fatalf("Detect: got %+v, want one Codex finding", findings)
 	}
 }
 

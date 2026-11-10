@@ -45,6 +45,7 @@ In above commit, scoring will be as follows:
 3. Branch - No, branch does not have known tools = 0.0
 4. Gitnotes - No gitnotes found = 0.0
 5. toolmention - Yes, one finding, tool Claude matched = 20.0
+6. disclosurephrase - No, it only runs on text scans (PR bodies, comments), not commits = 0.0
 
 **Total score**: 75 + 0 + 0 + 0 + 20 = **95 pts**
 

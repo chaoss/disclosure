@@ -19,10 +19,18 @@ var (
 	trailingPhrase = regexp.MustCompile(`(?i)^\s+(?:was\s+used|assisted|helped|wrote|generated|drafted)\b`)
 	// An "AI disclosure:" style label anywhere on the line.
 	disclosureLabel = regexp.MustCompile(`(?i)\bAI[\s-]*(?:disclosure|assistance|usage|use)\s*:`)
+	// "not", "no", "wasn't" just before a phrase or tool name ("not generated with", "No Copilot was used").
+	negatedBefore = regexp.MustCompile(`(?i)(?:\b(?:no|not|never|neither|nor|without)|n't)\s+(?:\w+\s+)?$`)
+	// Any negation after a label ("AI disclosure: none", "AI use: Claude was not used").
+	negation = regexp.MustCompile(`(?i)\b(?:no|not|none|never|neither|nor|without|n/a)\b|n't\b`)
+
+	htmlComment = regexp.MustCompile(detection.HtmlCommentPattern)
 )
 
 type Detector struct {
 	ConfidenceLevels map[detection.Confidence]float64
+	// Mentions finds tool names in a line. Defaults to the built-in names.
+	Mentions func(text string) []toolmention.Mention
 }
 
 func (d *Detector) Name() string { return "disclosurephrase" }
@@ -30,15 +38,17 @@ func (d *Detector) Name() string { return "disclosurephrase" }
 func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	text, err := input.GetTextWithCommitMessage()
-	if err != nil {
-		return nil
+	mentions := d.Mentions
+	if mentions == nil {
+		mentions = toolmention.Mentions
 	}
+	// Template hints inside HTML comments are not statements by the author.
+	text := htmlComment.ReplaceAllString(input.Text, "")
 
 	var findings []detection.Finding
 	seen := map[string]bool{}
 	for line := range strings.SplitSeq(text, "\n") {
-		for _, m := range toolmention.Mentions(line) {
+		for _, m := range mentions(line) {
 			if seen[m.Tool] || !disclosed(line, m) {
 				continue
 			}
@@ -57,7 +67,15 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 }
 
 func disclosed(line string, m toolmention.Mention) bool {
-	return leadingPhrase.MatchString(line[:m.Start]) ||
-		trailingPhrase.MatchString(line[m.End:]) ||
-		disclosureLabel.MatchString(line)
+	before, after := line[:m.Start], line[m.End:]
+	if loc := leadingPhrase.FindStringIndex(before); loc != nil && !negatedBefore.MatchString(before[:loc[0]]) {
+		return true
+	}
+	if trailingPhrase.MatchString(after) && !negatedBefore.MatchString(before) {
+		return true
+	}
+	if loc := disclosureLabel.FindStringIndex(line); loc != nil && !negation.MatchString(line[loc[1]:]) {
+		return true
+	}
+	return false
 }

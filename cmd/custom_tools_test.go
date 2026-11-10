@@ -23,7 +23,7 @@ func writeCustomToolsTestFile(t *testing.T, name, contents string) string {
 
 func TestRunTextCustomTools(t *testing.T) {
 	toolsPath := writeCustomToolsTestFile(t, "tools.json", `{"version":1,"custom_tools":[" Example Assistant ","example assistant","CURSOR","GPT-4 Turbo"]}`)
-	inputPath := writeCustomToolsTestFile(t, "text.txt", "Example Assistant helped alongside Cursor and GPT-4 Turbo.")
+	inputPath := writeCustomToolsTestFile(t, "text.txt", "Compare Example Assistant alongside Cursor and GPT-4 Turbo.")
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"text", "--custom-tools=" + toolsPath, "--input=" + inputPath, "--format=json"}, &stdout, &stderr)
 	if code != ExitAI || stderr.Len() != 0 {

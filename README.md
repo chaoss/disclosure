@@ -17,7 +17,7 @@ The built-in detectors run against each commit, each producing findings at a con
 - Branch names following conventions used by AI coding CLIs/agents (e.g. `codex/`, `claude/`, `cursor/`, `copilot/`, `devin/`, `cline/`, `aider/`, `gemini/`).
 - AI session ID trailers (such as Replit-Commit-Session-Id) combined with other known commit trailers, indicating that the commit was generated as part of an AI conversation or workflow.
 - Mentions of tool names like Claude, Copilot, Cursor, Aider, ChatGPT, Windsurf, Devin, etc. This detector also runs against commit messages, and is the primary detector for the text-scanning mode (PR bodies, comments).
-- Statements that a tool was used, such as "Drafted with OpenAI Codex", "Copilot was used to generate docs" or an "AI disclosure:" line, scored higher than a bare mention. Skipped when checkbox detection is enabled, since the checkbox answer is the disclosure.
+- Statements that a tool was used, such as "Drafted with OpenAI Codex", "Copilot was used to generate docs" or an "AI disclosure:" line, scored higher than a bare mention. Text-scanning mode only, and skipped when checkbox detection is enabled, since the checkbox answer is the disclosure.
 - Disclosure of AI use from checkboxes in pull request description or comments, in text-scanning mode. Checkbox labels configurable by user.
 
 ## CLI usage

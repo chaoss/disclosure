@@ -113,7 +113,15 @@ type Mention struct {
 
 // Mentions returns the built-in tool names found in text.
 func Mentions(text string) []Mention {
-	matches := matchTools(text, nil)
+	return toMentions(matchTools(text, nil))
+}
+
+// Mentions returns the built-in and custom tool names found in text.
+func (d *Detector) Mentions(text string) []Mention {
+	return toMentions(matchTools(text, d.customToolPatterns))
+}
+
+func toMentions(matches []toolMatch) []Mention {
 	mentions := make([]Mention, 0, len(matches))
 	for _, m := range matches {
 		mentions = append(mentions, Mention{Tool: m.name, Start: m.start, End: m.end})
