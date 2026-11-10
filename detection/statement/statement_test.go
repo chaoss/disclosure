@@ -1,6 +1,7 @@
-package disclosurephrase
+package statement
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chaoss/disclosure/detection"
@@ -28,8 +29,8 @@ func TestDetectDisclosureStatements(t *testing.T) {
 		if findings[0].Tool != want {
 			t.Errorf("Detect(%q): tool = %q, want %q", text, findings[0].Tool, want)
 		}
-		if findings[0].Score != detection.DisclosurePhraseBaseScore {
-			t.Errorf("Detect(%q): score = %f, want %f", text, findings[0].Score, detection.DisclosurePhraseBaseScore)
+		if findings[0].Score != detection.StatementBaseScore {
+			t.Errorf("Detect(%q): score = %f, want %f", text, findings[0].Score, detection.StatementBaseScore)
 		}
 		if findings[0].Confidence != detection.ConfidenceHigh {
 			t.Errorf("Detect(%q): confidence = %s, want high", text, findings[0].Confidence.String())
@@ -53,6 +54,9 @@ func TestDetectPlainMentionsAreIgnored(t *testing.T) {
 		"Neither Copilot nor ChatGPT was used",
 		"AI use: Claude was not used",
 		"AI disclosure: none. No Copilot or ChatGPT.",
+		"Assisted-by: Claude",
+		"Generated-by: Cursor",
+		"Co-authored-by: Claude <noreply@anthropic.com>",
 		"<!-- AI disclosure: say which tool, e.g. Claude or Copilot -->",
 		"<!--\nAI disclosure: e.g.\nDrafted with Codex\n-->\nFixes a typo.",
 		"",
@@ -89,5 +93,27 @@ func TestDetectReportsEachToolOnce(t *testing.T) {
 	}
 	if tools["Codex"] != 1 || tools["Cursor"] != 1 || len(tools) != 2 {
 		t.Errorf("Detect: tools = %v, want Codex and Cursor once each", tools)
+	}
+}
+
+func BenchmarkDetect(b *testing.B) {
+	d := &Detector{ConfidenceLevels: detection.GetDefaultConfidenceLevels()}
+	plain := strings.Repeat("Update the parser and add regression coverage for empty input.\n", 200)
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "short match", text: "Drafted with OpenAI Codex."},
+		{name: "12k chars no match", text: plain},
+		{name: "12k chars match at end", text: plain + "Drafted with OpenAI Codex."},
+	}
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			input := detection.Input{Text: tt.text}
+			b.ReportAllocs()
+			for range b.N {
+				d.Detect(input)
+			}
+		})
 	}
 }

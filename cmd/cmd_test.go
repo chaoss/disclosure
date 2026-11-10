@@ -1215,7 +1215,7 @@ func TestRunTextCommandWithCheckboxDetection(t *testing.T) {
 	}
 }
 
-func TestRunTextCommandDisclosurePhrase(t *testing.T) {
+func TestRunTextCommandStatement(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "pr.txt")
 	body := "Fix synchronous read recursion.\n\nDrafted with OpenAI Codex."
 	if err := os.WriteFile(file, []byte(body), 0644); err != nil {
@@ -1241,18 +1241,18 @@ func TestRunTextCommandDisclosurePhrase(t *testing.T) {
 	for _, f := range result.Findings {
 		detectors[f.Detector] = true
 	}
-	if !detectors["disclosurephrase"] {
-		t.Errorf("findings = %+v, want a disclosurephrase finding", result.Findings)
+	if !detectors["statement"] {
+		t.Errorf("findings = %+v, want a statement finding", result.Findings)
 	}
 
 	stdout.Reset()
 	Run([]string{"text", "--input=" + file, "--format=json", "--enable-checkbox-detection"}, &stdout, &stderr)
-	if strings.Contains(stdout.String(), "disclosurephrase") {
-		t.Errorf("checkbox detection on: got a disclosurephrase finding, want the checkbox to decide")
+	if strings.Contains(stdout.String(), `"statement"`) {
+		t.Errorf("checkbox detection on: got a statement finding, want the checkbox to decide")
 	}
 }
 
-func TestRunTextCommandDisclosurePhraseCustomTool(t *testing.T) {
+func TestRunTextCommandStatementCustomTool(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "pr.txt")
 	if err := os.WriteFile(file, []byte("Drafted with Fooagent."), 0644); err != nil {
@@ -1268,12 +1268,12 @@ func TestRunTextCommandDisclosurePhraseCustomTool(t *testing.T) {
 	if code != ExitAI {
 		t.Fatalf("code = %d, want %d (stdout=%s stderr=%s)", code, ExitAI, stdout.String(), stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "disclosurephrase") {
-		t.Errorf("output = %s, want a disclosurephrase finding for the custom tool", stdout.String())
+	if !strings.Contains(stdout.String(), `"statement"`) {
+		t.Errorf("output = %s, want a statement finding for the custom tool", stdout.String())
 	}
 }
 
-func TestRunScanSkipsDisclosurePhrase(t *testing.T) {
+func TestRunScanSkipsStatement(t *testing.T) {
 	dir := t.TempDir()
 	repo, err := git.PlainInit(dir, false)
 	if err != nil {
@@ -1299,7 +1299,7 @@ func TestRunScanSkipsDisclosurePhrase(t *testing.T) {
 	if !strings.Contains(stdout.String(), "toolmention") {
 		t.Fatalf("output = %s, want a toolmention finding", stdout.String())
 	}
-	if strings.Contains(stdout.String(), "disclosurephrase") {
-		t.Errorf("output = %s, want no disclosurephrase finding on a commit message", stdout.String())
+	if strings.Contains(stdout.String(), `"statement"`) {
+		t.Errorf("output = %s, want no statement finding on a commit message", stdout.String())
 	}
 }
