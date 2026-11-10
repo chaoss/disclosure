@@ -4,17 +4,9 @@ package branchname
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/chaoss/disclosure/detection"
-)
-
-// Merge commits keep the source branch name in their subject line, which is
-// the only record of it once the branch is deleted.
-var (
-	githubMergeSubject = regexp.MustCompile(`^Merge pull request #\d+ from [^/\s]+/(\S+)`)
-	gitMergeSubject    = regexp.MustCompile(`^Merge (?:remote-tracking )?branch '([^']+)'`)
 )
 
 type Detector struct {
@@ -31,8 +23,10 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 			return f
 		}
 	}
-	if branch := mergedBranch(input.CommitMessage); branch != "" {
-		return d.match(branch, "merged branch")
+	if message, err := input.GetCommitMessage(); err == nil {
+		if branch := mergedBranch(message); branch != "" {
+			return d.match(branch, "merged branch")
+		}
 	}
 	return nil
 }
@@ -56,8 +50,8 @@ func (d *Detector) match(branch, source string) []detection.Finding {
 }
 
 func mergedBranch(message string) string {
-	subject, _, _ := strings.Cut(strings.TrimSpace(message), "\n")
-	for _, re := range []*regexp.Regexp{githubMergeSubject, gitMergeSubject} {
+	subject, _, _ := strings.Cut(message, "\n")
+	for _, re := range detection.MergeSubjectPatterns {
 		if m := re.FindStringSubmatch(subject); m != nil {
 			return m[1]
 		}

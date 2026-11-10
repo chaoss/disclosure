@@ -74,6 +74,8 @@ func TestDetectMergedBranchFromCommitMessage(t *testing.T) {
 		"Merge pull request #188 from agrafix/codex/fix-cpu-denial-of-service-vulnerability\n\nBound captured extension route backtracking": codex,
 		"Merge pull request #41 from OskarEichler/codex/security-normalize-hostname-bounds":                                                 codex,
 		"Merge branch 'claude/add-tests'":                                  detection.KnownAgentBranchPrefixes["claude/"],
+		"Merge remote-tracking branch 'origin/codex/fix-bug'":              codex,
+		"Merge remote-tracking branch 'copilot/main'":                      "",
 		"Merge remote-tracking branch 'origin/main' into copilot/fix-docs": "",
 		"Merge pull request #12 from someone/feature/codex-support":        "",
 		"Fix bug\n\nMerge pull request #1 from a/codex/x":                  "",
