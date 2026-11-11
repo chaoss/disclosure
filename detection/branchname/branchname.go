@@ -18,11 +18,20 @@ func (d *Detector) Name() string { return "branchname" }
 func (d *Detector) GetConfidenceLevels() map[detection.Confidence]float64 { return d.ConfidenceLevels }
 
 func (d *Detector) Detect(input detection.Input) []detection.Finding {
-	branch, err := input.GetBranchName()
-	if err != nil {
-		return nil
+	if branch, err := input.GetBranchName(); err == nil {
+		if f := d.match(branch, "branch name"); f != nil {
+			return f
+		}
 	}
+	if message, err := input.GetCommitMessage(); err == nil {
+		if branch := mergedBranch(message); branch != "" {
+			return d.match(branch, "merged branch")
+		}
+	}
+	return nil
+}
 
+func (d *Detector) match(branch, source string) []detection.Finding {
 	score := detection.BranchNameBaseScore
 	confidence := detection.ScoreToConfidence(d.ConfidenceLevels, score)
 	lower := strings.ToLower(branch)
@@ -33,10 +42,19 @@ func (d *Detector) Detect(input detection.Input) []detection.Finding {
 				Tool:       tool,
 				Score:      score,
 				Confidence: confidence,
-				Detail:     fmt.Sprintf("branch name %q matches %s convention", branch, tool),
+				Detail:     fmt.Sprintf("%s %q matches %s convention", source, branch, tool),
 			}}
 		}
 	}
-
 	return nil
+}
+
+func mergedBranch(message string) string {
+	subject, _, _ := strings.Cut(message, "\n")
+	for _, re := range detection.MergeSubjectPatterns {
+		if m := re.FindStringSubmatch(subject); m != nil {
+			return m[1]
+		}
+	}
+	return ""
 }

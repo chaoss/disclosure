@@ -67,6 +67,31 @@ func TestDetectNoMatch(t *testing.T) {
 	}
 }
 
+func TestDetectMergedBranchFromCommitMessage(t *testing.T) {
+	d := &Detector{}
+	codex := detection.KnownAgentBranchPrefixes["codex/"]
+	cases := map[string]string{
+		"Merge pull request #188 from agrafix/codex/fix-cpu-denial-of-service-vulnerability\n\nBound captured extension route backtracking": codex,
+		"Merge pull request #41 from OskarEichler/codex/security-normalize-hostname-bounds":                                                 codex,
+		"Merge branch 'claude/add-tests'":                                  detection.KnownAgentBranchPrefixes["claude/"],
+		"Merge remote-tracking branch 'origin/codex/fix-bug'":              codex,
+		"Merge remote-tracking branch 'copilot/main'":                      "",
+		"Merge remote-tracking branch 'origin/main' into copilot/fix-docs": "",
+		"Merge pull request #12 from someone/feature/codex-support":        "",
+		"Fix bug\n\nMerge pull request #1 from a/codex/x":                  "",
+	}
+	for message, want := range cases {
+		findings := d.Detect(detection.Input{BranchName: "main", CommitMessage: message})
+		got := ""
+		if len(findings) == 1 {
+			got = findings[0].Tool
+		}
+		if got != want {
+			t.Errorf("Detect(%q): tool = %q, want %q", message, got, want)
+		}
+	}
+}
+
 func TestDetectPrefixMustBeFollowedBySeparator(t *testing.T) {
 	// "codexterity" starts with "codex" but not "codex/" and should not match.
 	d := &Detector{}

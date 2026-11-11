@@ -160,6 +160,14 @@ var KnownAgentBranchPrefixes = map[string]string{
 	"swe-agent/": "SWE-Agent",
 }
 
+// MergeSubjectPatterns capture the source branch from a merge commit subject,
+// without the fork owner or remote name in front of it.
+var MergeSubjectPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`^Merge pull request #\d+ from [^/\s]+/(\S+)`),
+	regexp.MustCompile(`^Merge remote-tracking branch '[^/']+/([^']+)'`),
+	regexp.MustCompile(`^Merge branch '([^']+)'`),
+}
+
 // KnownCoAuthorEmails Known emails present with Co-Authored-By trailers
 var KnownCoAuthorEmails = map[string]string{
 	"noreply@anthropic.com":   "Claude Code",
