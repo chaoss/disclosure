@@ -28,6 +28,7 @@ disclosure scan \
 	[--min-confidence=low|medium|high] \
 	[--confidence-levels="low=30,medium=70,high=100"]
 	[repo-path]
+disclosure policy [--format=json|text] [repo-path]
 disclosure text \
 	[--format=json|text] [--input=FILE|-] \
 	[--min-confidence=low|medium|high] \
@@ -40,6 +41,24 @@ disclosure version
 ```
 
 Exit codes: `0` = no AI detected, `1` = AI detected, `2` = error.
+
+The `policy` command is a neutral file inventory. It returns success whether
+or not it finds policy-related files; it does not use the AI-detected exit code.
+
+### Inventory policy-related files
+
+The policy command lists known AI instruction and governance file paths from
+the repository's current committed tree (`HEAD`). It reports file types and
+the commit scanned, but does not read file contents, scan history, or decide
+whether AI use is allowed.
+
+```sh
+# List policy-related files in the current repository
+disclosure policy
+
+# Get the same inventory as JSON
+disclosure policy --format=json /path/to/repo
+```
 
 ### Scan commits
 
@@ -209,7 +228,8 @@ detection/committer/    Known AI bot committer emails
 detection/gitnotes/     git-ai authorship logs from refs/notes/ai
 detection/toolmention/  AI tool name mentions in text
 detection/trailer/      Look for known trailers in commit message
-gitops/                 go-git wrapper for reading commits
+gitops/                 go-git wrapper for reading commits and current trees
+policy/                 Neutral inventory of policy-related file paths
 scan/                   Orchestration: run detectors over commits or text
 output/                 JSON and human-readable text formatters
 cmd/                    CLI subcommands
