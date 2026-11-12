@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+# PoC name. `uvx disclosure ...` works if this name is free on the (Test)PyPI
+# instance. If it is taken, rename to "disclosure-cli" and invoke with
+# `uvx --from disclosure-cli disclosure ...`.
+name = "disclosure"
+version = "0.1.0"
+description = "Python wrapper for the CHAOSS disclosure CLI (proof of concept)"
+readme = "README.md"
+requires-python = ">=3.9"
+# Matches the upstream LICENSE file (bare GPL-3.0 text => -only under SPDX).
+# Confirm -only vs -or-later with the maintainers before this leaves PoC status.
+license = "GPL-3.0-only"
+# Ship the license text in both the wheel (.dist-info/licenses/) and the sdist.
+# LICENSE is a copy of the repository root LICENSE (kept in sync).
+license-files = ["LICENSE"]
+keywords = ["chaoss", "ai-disclosure", "ai-detection"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+]
+dependencies = []  # stdlib only, so the wrapper stays a single tiny universal wheel
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/chaoss/disclosure"
+Issues = "https://github.com/chaoss/disclosure/issues"
+
+[project.scripts]
+disclosure = "disclosure.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/disclosure"]
