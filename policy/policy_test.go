@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,15 +20,22 @@ func TestTypeForPath(t *testing.T) {
 		want bool
 	}{
 		{path: "AGENTS.md", kind: "agent_instructions", want: true},
+		{path: "packages/sdk/agents.MD", kind: "agent_instructions", want: true},
 		{path: "docs/CLAUDE.md", kind: "agent_instructions", want: true},
+		{path: "packages/sdk/GEMINI.md", kind: "agent_instructions", want: true},
 		{path: "GEMINI.md", kind: "agent_instructions", want: true},
 		{path: ".github/copilot-instructions.md", kind: "agent_instructions", want: true},
 		{path: ".github/instructions/review/go.instructions.md", kind: "agent_instructions", want: true},
+		{path: ".github/instructions/go.instructions.md", kind: "agent_instructions", want: true},
 		{path: ".cursor/rules/go.mdc", kind: "agent_instructions", want: true},
+		{path: ".cursor/rules/go/review.mdc", kind: "agent_instructions", want: true},
 		{path: ".clinerules", kind: "agent_instructions", want: true},
 		{path: ".clinerules/review.md", kind: "agent_instructions", want: true},
+		{path: ".clinerules/workflows/review", kind: "agent_instructions", want: true},
 		{path: ".windsurf/rules/review.md", kind: "agent_instructions", want: true},
+		{path: ".windsurf/rules/go/review.md", kind: "agent_instructions", want: true},
 		{path: ".continue/rules/review.md", kind: "agent_instructions", want: true},
+		{path: ".continue/rules/go/review.md", kind: "agent_instructions", want: true},
 		{path: "docs/CODE_OF_CONDUCT.md", kind: "conduct", want: true},
 		{path: "docs/code_of_conduct.md", kind: "conduct", want: true},
 		{path: "CONTRIBUTING.md", kind: "contributing", want: true},
@@ -44,11 +53,27 @@ func TestTypeForPath(t *testing.T) {
 		{path: ".github/ISSUE_TEMPLATE.md", kind: "issue_template", want: true},
 		{path: ".github/ISSUE_TEMPLATE/bug.yml", kind: "issue_template", want: true},
 		{path: "docs/ISSUE_TEMPLATE/nested/bug.yml", want: false},
+		{path: "ISSUE_TEMPLATE/bug.yml", kind: "issue_template", want: true},
+		{path: "docs/ISSUE_TEMPLATE/bug.yml", kind: "issue_template", want: true},
+		{path: "PULL_REQUEST_TEMPLATE/release.md", kind: "pull_request_template", want: true},
+		{path: "docs/PULL_REQUEST_TEMPLATE/release.md", kind: "pull_request_template", want: true},
+		// Specific filenames take priority over general template-directory rules.
+		{path: ".github/ISSUE_TEMPLATE/AGENTS.md", kind: "agent_instructions", want: true},
+		{path: ".github/PULL_REQUEST_TEMPLATE/CLAUDE.md", kind: "agent_instructions", want: true},
 		{path: "README.md", want: false},
+		{path: "NOT_AGENTS.md", want: false},
+		{path: "AGENTS.md.bak", want: false},
+		{path: ".clinerules.bak", want: false},
+		{path: ".cursor/rules-old/go.mdc", want: false},
+		{path: ".cursor/rules/go.md", want: false},
+		{path: "vendor/.github/copilot-instructions.md", want: false},
+		{path: ".windsurf/rules/review.txt", want: false},
+		{path: ".continue/rules/review.yaml", want: false},
 		{path: ".github/NOT_ISSUE_TEMPLATE.md", want: false},
 		{path: ".github/instructions/review.md", want: false},
 	}
 
+	coveredPatterns := map[int]bool{}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
 			gotKind, got := typeForPath(tt.path)
@@ -58,7 +83,34 @@ func TestTypeForPath(t *testing.T) {
 			if got && gotKind != tt.kind {
 				t.Errorf("typeForPath(%q) type = %q, want %q", tt.path, gotKind, tt.kind)
 			}
+			if tt.want && gotKind == tt.kind {
+				for i, pattern := range KnownFilePatterns {
+					if pattern.Pattern.MatchString(strings.ToLower(tt.path)) {
+						coveredPatterns[i] = true
+						break
+					}
+				}
+			}
 		})
+	}
+	for i, pattern := range KnownFilePatterns {
+		if !coveredPatterns[i] {
+			t.Errorf("pattern %q has no matching test example", pattern.Pattern)
+		}
+	}
+}
+
+func TestTypeForPathUsesPatternCatalog(t *testing.T) {
+	originalPatterns := KnownFilePatterns
+	t.Cleanup(func() { KnownFilePatterns = originalPatterns })
+	KnownFilePatterns = append(append([]FilePattern(nil), originalPatterns...), FilePattern{
+		Pattern: regexp.MustCompile(`^ai-policy\.md$`),
+		Type:    "test_policy",
+	})
+
+	kind, ok := typeForPath("AI-POLICY.md")
+	if !ok || kind != "test_policy" {
+		t.Fatalf("added catalog entry was not detected: type = %q, matched = %v", kind, ok)
 	}
 }
 
