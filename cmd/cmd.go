@@ -22,6 +22,7 @@ import (
 	"github.com/chaoss/disclosure/detection/toolmention"
 	"github.com/chaoss/disclosure/detection/trailer"
 	"github.com/chaoss/disclosure/output"
+	"github.com/chaoss/disclosure/policy"
 	"github.com/chaoss/disclosure/scan"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
@@ -184,6 +185,7 @@ Exit codes:
 	exitCode := ExitNoAI
 
 	rootCmd.AddCommand(scanCommand(stdout, stderr, &exitCode))
+	rootCmd.AddCommand(policyCommand(stdout, &exitCode))
 	rootCmd.AddCommand(textCommand(stdout, stderr, &exitCode))
 	rootCmd.AddCommand(versionCommand(stdout, &exitCode))
 	rootCmd.AddCommand(generateDocs(&exitCode))
@@ -195,6 +197,54 @@ Exit codes:
 	}
 
 	return exitCode
+}
+
+func policyCommand(stdout io.Writer, exitCode *int) *cobra.Command {
+	var formatFlag string
+
+	cmd := &cobra.Command{
+		Use:   "policy [repo-path]",
+		Short: "Scan a repository for policy-related information",
+		Long: `Run policy-related scans in a git repository.
+
+Currently this command lists known policy-related file paths and types from
+the committed tree at HEAD. It does not yet read file contents, scan commit
+history, or decide whether a repository permits or uses AI.
+
+Examples:
+  disclosure policy
+  disclosure policy --format=json /path/to/repo`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			repoPath := "."
+			if len(args) == 1 {
+				repoPath = args[0]
+			}
+
+			report, err := policy.Scan(repoPath)
+			if err != nil {
+				*exitCode = ExitError
+				return err
+			}
+
+			switch formatFlag {
+			case "json":
+				err = output.FormatPolicyJSON(stdout, report)
+			case "text":
+				err = output.FormatPolicyText(stdout, report)
+			default:
+				err = fmt.Errorf("unknown format: %s", formatFlag)
+			}
+			if err != nil {
+				*exitCode = ExitError
+				return err
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&formatFlag, "format", "text", "output format: json or text")
+	return cmd
 }
 
 func scanCommand(stdout, stderr io.Writer, exitCode *int) *cobra.Command {
