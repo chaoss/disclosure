@@ -204,11 +204,12 @@ func policyCommand(stdout io.Writer, exitCode *int) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "policy [repo-path]",
-		Short: "List policy-related files in a repository",
-		Long: `List known policy-related file paths in the repository's current committed tree.
+		Short: "Scan a repository for policy-related information",
+		Long: `Run policy-related scans in a git repository.
 
-This command reports file paths and types only. It does not read file contents,
-scan commit history, or decide whether a repository permits or uses AI.
+Currently this command lists known policy-related file paths and types from
+the committed tree at HEAD. It does not yet read file contents, scan commit
+history, or decide whether a repository permits or uses AI.
 
 Examples:
   disclosure policy

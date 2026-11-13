@@ -1,4 +1,5 @@
-// Package policy finds known policy-related files without interpreting their contents.
+// Package policy provides policy-related scans. Currently it inventories known
+// policy-related files without interpreting their contents.
 package policy
 
 import (

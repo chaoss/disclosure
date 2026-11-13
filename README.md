@@ -42,15 +42,21 @@ disclosure version
 
 Exit codes: `0` = no AI detected, `1` = AI detected, `2` = error.
 
-The `policy` command is a neutral file inventory. It returns success whether
-or not it finds policy-related files; it does not use the AI-detected exit code.
+The `policy` command is the home for policy-related scans. Its current
+file-inventory scan returns success whether or not it finds policy-related
+files; it does not use the AI-detected exit code.
 
-### Inventory policy-related files
+### Scan policies
 
-The policy command lists known AI instruction and governance file paths from
-the repository's current committed tree (`HEAD`). It reports file types and
-the commit scanned, but does not read file contents, scan history, or decide
-whether AI use is allowed.
+For now, the `policy` command supports listing known AI instruction and
+governance file paths from the repository's current committed tree (`HEAD`).
+It reports file types and the commit scanned, but does not yet read file
+contents, scan history, or decide whether AI use is allowed.
+
+Known file patterns and their types are listed in
+[`policy/constants.go`](policy/constants.go). To support another convention,
+add a pattern there with matching and non-matching examples in
+`policy/policy_test.go`.
 
 ```sh
 # List policy-related files in the current repository
